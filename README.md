@@ -56,6 +56,7 @@ Las colecciones (`searches`, `results`, `leads`, `settings`) y sus índices se c
 | `VAPID_SUBJECT` | Contacto para los servicios push (`mailto:` o `https:`) | `mailto:avisos@leads-scraping.example` |
 | `REMINDERS` | `off` desactiva los recordatorios en segundo plano | activados |
 | `ENRICH_ALLOW_LOCAL` | `1` permite que el enriquecedor visite direcciones locales (solo para pruebas) | — |
+| `PORTAL_URL` / `PORTAL_SECRET` | Dirección del portal del cliente en Cloudflare y secreto compartido (ver `portal/README.md`) | — |
 | `MCP_TOKEN` | Token para el servidor MCP. Sin él, el MCP solo acepta conexiones desde este equipo | — |
 
 En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a gosom. Si está en rojo, gosom no está levantado.
@@ -161,7 +162,17 @@ La página **Clientes** gestiona el trabajo para tus clientes:
 - **Presupuesto y pagos**: presupuesto, pagos con fecha y concepto, y lo pendiente de cobro.
 - **Horas**: registros con fecha y descripción (`1:30`, `1,5` o `90m`), total y coste si indicas un precio por hora.
 - La lista de clientes resume proyectos en marcha, avance, próxima entrega, retrasos y pendiente de cobro.
-- Cada hito y tarea tiene la marca **visible para el cliente** (el ojo). Hoy no cambia nada; servirá para el portal del cliente (siguiente fase), que solo mostrará lo marcado.
+- Cada hito y tarea tiene la marca **visible para el cliente** (el ojo): es lo único que verá en su portal.
+
+### Portal del cliente
+
+Cada cliente puede tener un **enlace privado** a una web (en Cloudflare, gratis) donde ve el avance de sus proyectos: porcentaje, próxima entrega, cronograma, tareas pendientes y completadas y, si lo activas en el proyecto, presupuesto y pagos. Incluye tus datos de contacto (WhatsApp, email).
+
+- Se despliega una vez desde la carpeta `portal/`: los pasos están en [`portal/README.md`](portal/README.md). Después añade `PORTAL_URL` y `PORTAL_SECRET` a `.env.local`.
+- En **Ajustes → Portal del cliente** pones el nombre de tu negocio, contacto y mensaje de bienvenida, y ves si la conexión funciona.
+- En la ficha del cliente: **Activar portal**, copiar o enviar el enlace por WhatsApp o email, ver cuándo lo abrió por última vez, **renovar** el enlace (el anterior deja de funcionar) o **desactivarlo**.
+- Se actualiza solo: cada cambio en sus proyectos, hitos o tareas se publica a los pocos segundos (mientras tu app esté encendida). También hay un botón "Publicar ahora".
+- Al portal solo se envía lo marcado como visible. Tu CRM, notas internas y horas nunca salen de tu equipo.
 
 ### Proveedores para completar datos
 
@@ -210,6 +221,7 @@ src/
 │   ├── enricher.ts          Interfaz de los enriquecedores (completar datos)
 │   ├── socials.ts           Redes sociales reconocidas y normalización de perfiles
 │   ├── clients.ts           Clientes, proyectos, hitos, pagos, horas y sus cálculos
+│   ├── portal.ts            Lo que se publica en el portal del cliente
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -229,8 +241,9 @@ src/
 │   ├── reminders.ts         Revisa cada minuto las tareas que vencen y avisa
 │   ├── enrich.ts            Trabajos de enriquecimiento en segundo plano
 │   ├── clients.ts           Validación y cambios de clientes y proyectos
+│   ├── portal.ts            Publicación en el portal (enlace, snapshot, auto-publicación)
 │   └── mcp/                 Servidor MCP para Claude (herramientas y acceso)
-├── app/api/                 REST: modules, searches, results, leads, clients, projects, enrich, tasks, notifications, export, stats, backup, settings, mcp
+├── app/api/                 REST: modules, searches, results, leads, clients (+ portal), projects, portal, enrich, tasks, notifications, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
 │   ├── pages/               Panel, Búsquedas, Resultados, Leads, Clientes, Tareas, Calendario, Papelera, Ajustes
@@ -243,6 +256,7 @@ src/
 └── lib/pwa.ts               Service worker, instalación y notificaciones
 ├── instrumentation.ts       Arranca los recordatorios al iniciar el servidor
 public/sw.js                 Service worker (pantalla sin conexión, avisos y push)
+portal/                      Portal del cliente: app aparte para Cloudflare Workers + D1 (ver portal/README.md)
 ```
 
 **Fuente y proveedor no son lo mismo.** Una *fuente* es de dónde salen los datos (Google Maps, Yelp, Páginas Amarillas…). Un *proveedor* es la herramienta que los extrae (gosom, Apify, la API oficial de Google…). Una fuente puede tener varios proveedores, y todos devuelven el mismo `Lead`.

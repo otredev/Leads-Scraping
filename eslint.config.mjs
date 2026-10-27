@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // El portal del cliente es otra app (Cloudflare Workers) con su propia configuración.
+    "portal/**",
   ]),
 ]);
 

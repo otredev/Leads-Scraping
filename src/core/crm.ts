@@ -153,6 +153,18 @@ export interface CrmSettings {
   lowRating: number;
   tables: Partial<Record<TableId, TablePrefs>>;
   templates: MessageTemplate[];
+  /** Datos de tu negocio que ven los clientes en su portal. */
+  portal?: PortalBrandSettings;
+}
+
+export interface PortalBrandSettings {
+  brandName?: string;
+  email?: string;
+  phone?: string;
+  /** Teléfono de WhatsApp (se normaliza a dígitos). */
+  whatsapp?: string;
+  website?: string;
+  welcome?: string;
 }
 
 export const DEFAULT_STAGES: Stage[] = [
@@ -180,6 +192,7 @@ export function withDefaults(s: Partial<CrmSettings> | undefined): CrmSettings {
     lowRating: typeof s?.lowRating === "number" ? s.lowRating : DEFAULT_SETTINGS.lowRating,
     tables: s?.tables ?? {},
     templates: s?.templates ?? DEFAULT_TEMPLATES,
+    ...(s?.portal ? { portal: s.portal } : {}),
   };
 }
 

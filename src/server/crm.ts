@@ -324,3 +324,27 @@ export async function saveTemplates(raw: unknown) {
   await store.saveSettings(next);
   return next;
 }
+
+/** Datos de tu negocio que ven los clientes en su portal. */
+export async function savePortalBrand(raw: unknown) {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const text = (k: string, max = 200) => (typeof r[k] === "string" && (r[k] as string).trim() ? (r[k] as string).trim().slice(0, max) : undefined);
+  const email = text("email");
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw badRequest("Email no válido");
+  let website = text("website", 300);
+  if (website && !/^https?:\/\//i.test(website)) website = `https://${website}`;
+  const portal = {
+    brandName: text("brandName", 80),
+    email,
+    phone: text("phone", 40),
+    whatsapp: text("whatsapp", 40),
+    website,
+    welcome: text("welcome", 500),
+  };
+  const store = getStore();
+  const next: CrmSettings = { ...(await store.getSettings()), portal: Object.fromEntries(Object.entries(portal).filter(([, v]) => v)) };
+  await store.saveSettings(next);
+  const { scheduleAll } = await import("./portal");
+  await scheduleAll();
+  return next;
+}

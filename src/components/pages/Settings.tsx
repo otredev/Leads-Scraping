@@ -8,6 +8,7 @@ import { CrmSettingsCard } from "../settings/CrmSettingsCard";
 import { TemplatesCard } from "../settings/TemplatesCard";
 import { AppCard, ClaudeCard } from "../settings/ClaudeCard";
 import { NotificationsCard } from "../settings/NotificationsCard";
+import { PortalSettingsCard } from "../settings/PortalSettingsCard";
 import { Card, Loading, Notice, PageHeader, Skeleton } from "../ui";
 
 function Code({ children }: { children: React.ReactNode }) {
@@ -225,6 +226,7 @@ export function Settings() {
             <>
               <CrmSettingsCard key={JSON.stringify([settings.stages, settings.tags, settings.lowRating])} settings={settings} />
               <TemplatesCard key={JSON.stringify(settings.templates)} settings={settings} />
+              <PortalSettingsCard key={JSON.stringify(settings.portal ?? {})} settings={settings} />
             </>
           ) : (
             <SkeletonCards titles={["Etapas y etiquetas"]} />

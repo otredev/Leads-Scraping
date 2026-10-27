@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Task } from "@/core/crm";
 import { getStore } from "./registry";
+import { schedulePublish } from "./portal";
 
 const badRequest = (m: string) => Object.assign(new Error(m), { status: 400 });
 
@@ -49,6 +50,7 @@ export async function createTask(raw: unknown): Promise<Task> {
     task = { ...base, leadId: lead.id, leadName: lead.name };
   }
   await store.createTask(task);
+  schedulePublish(task.clientId);
   return task;
 }
 
@@ -70,7 +72,16 @@ export async function updateTask(id: string, raw: unknown) {
   if (!changes.length) throw badRequest("No hay cambios");
   const task = await getStore().updateTask(id, patch);
   if (!task) throw Object.assign(new Error("Tarea no encontrada"), { status: 404 });
+  schedulePublish(task.clientId);
   return task;
+}
+
+/** Borra una tarea (y republica el portal si era de un cliente). */
+export async function deleteTask(id: string) {
+  const store = getStore();
+  const task = (await store.listTasks()).find((t) => t.id === id);
+  await store.deleteTask(id);
+  schedulePublish(task?.clientId);
 }
 
 export interface TaskListItem extends Task {

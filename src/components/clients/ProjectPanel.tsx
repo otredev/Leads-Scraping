@@ -241,7 +241,20 @@ function MoneyCard({ project, totals, onPatch }: { project: Project; totals: Tot
   const paidPct = project.budget ? Math.min(100, Math.round((totals.paid / project.budget) * 100)) : undefined;
 
   return (
-    <Card title="Presupuesto y pagos">
+    <Card
+      title="Presupuesto y pagos"
+      actions={
+        <label className="flex items-center gap-1.5 text-xs text-fg-2" title="Muestra presupuesto, pagado, pendiente y la lista de pagos en el portal del cliente">
+          <input
+            type="checkbox"
+            className="size-3.5 accent-primary"
+            checked={Boolean(project.showPaymentsToClient)}
+            onChange={(e) => void onPatch({ showPaymentsToClient: e.target.checked })}
+          />
+          Visible para el cliente
+        </label>
+      }
+    >
       <div className="flex flex-col gap-4">
         <dl className="grid grid-cols-3 gap-3 text-center">
           {[

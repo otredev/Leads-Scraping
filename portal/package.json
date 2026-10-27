@@ -1,0 +1,22 @@
+{
+  "name": "leads-portal",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Portal del cliente de Leads Scraping (Cloudflare Workers + D1)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:migrate:local": "wrangler d1 migrations apply leads-portal --local",
+    "db:migrate:remote": "wrangler d1 migrations apply leads-portal --remote",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.13.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261027.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.154.0"
+  }
+}

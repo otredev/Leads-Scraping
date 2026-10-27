@@ -40,8 +40,18 @@ export interface Client {
   /** Lead del que viene (si se convirtió desde Leads). */
   leadId?: string;
   archived?: boolean;
+  /** Portal del cliente (enlace privado). El token solo se guarda aquí; el portal guarda su hash. */
+  portal?: ClientPortal;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ClientPortal {
+  token: string;
+  enabledAt: string;
+  publishedAt?: string;
+  /** Último error al publicar (p. ej. el portal no responde). */
+  lastError?: string;
 }
 
 export interface Milestone {
@@ -83,6 +93,8 @@ export interface Project {
   budget?: number;
   hourlyRate?: number;
   milestones: Milestone[];
+  /** Mostrar presupuesto y pagos en el portal del cliente. */
+  showPaymentsToClient?: boolean;
   payments: Payment[];
   time: TimeEntry[];
   createdAt: string;

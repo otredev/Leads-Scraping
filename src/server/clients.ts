@@ -15,6 +15,7 @@ import {
 import { normalizePhone } from "@/core/phone";
 import { defaultCountry } from "./config";
 import { getStore } from "./registry";
+import { disablePortal, schedulePublish } from "./portal";
 
 const bad = (m: string) => Object.assign(new Error(m), { status: 400 });
 const notFound = (m: string) => Object.assign(new Error(m), { status: 404 });
@@ -166,13 +167,17 @@ export async function updateClient(id: string, raw: unknown) {
   if (typeof r.archived === "boolean") set("archived", r.archived || null);
   next = withPhone(next, optional(r, "phone", 40));
   await store.putClient(next);
+  schedulePublish(next.id);
   return next;
 }
 
 /** Borra el cliente con sus proyectos y tareas. */
 export async function deleteClient(id: string) {
   const store = getStore();
-  if (!(await store.getClient(id))) throw notFound("Cliente no encontrado");
+  const client = await store.getClient(id);
+  if (!client) throw notFound("Cliente no encontrado");
+  // El enlace del portal deja de funcionar (si falla, se borra igualmente aquí).
+  if (client.portal) await disablePortal(id).catch((err: Error) => console.error(`[portal] ${err.message}`));
   for (const p of await store.listProjects({ clientId: id })) await store.deleteProject(p.id);
   for (const t of await store.listTasks({ clientId: id })) await store.deleteTask(t.id);
   await store.deleteClient(id);
@@ -212,6 +217,7 @@ export async function createProject(raw: unknown): Promise<Project> {
     updatedAt: t,
   };
   await store.putProject(project);
+  schedulePublish(project.clientId);
   return project;
 }
 
@@ -239,6 +245,7 @@ export async function updateProject(id: string, raw: unknown): Promise<Project> 
   if ("currency" in r) p.currency = currency(r.currency) ?? p.currency;
   if ("budget" in r) p.budget = money(r.budget, "Presupuesto");
   if ("hourlyRate" in r) p.hourlyRate = money(r.hourlyRate, "Precio por hora");
+  if (typeof r.showPaymentsToClient === "boolean") p.showPaymentsToClient = r.showPaymentsToClient || undefined;
 
   // Hitos
   const am = r.addMilestone as Record<string, unknown> | undefined;
@@ -289,15 +296,18 @@ export async function updateProject(id: string, raw: unknown): Promise<Project> 
   if (typeof r.deleteTime === "string") p.time = p.time.filter((x) => x.id !== r.deleteTime);
 
   await store.putProject(p);
+  schedulePublish(p.clientId);
   return p;
 }
 
 /** Borra el proyecto y sus tareas. */
 export async function deleteProject(id: string) {
   const store = getStore();
-  if (!(await store.getProject(id))) throw notFound("Proyecto no encontrado");
+  const project = await store.getProject(id);
+  if (!project) throw notFound("Proyecto no encontrado");
   for (const t of await store.listTasks({ projectId: id })) await store.deleteTask(t.id);
   await store.deleteProject(id);
+  schedulePublish(project.clientId);
 }
 
 // ── Resumen para la lista de clientes ──
