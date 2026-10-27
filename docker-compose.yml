@@ -1,0 +1,16 @@
+# Servicio de scraping gosom/google-maps-scraper en modo web (REST API en :8080).
+# Arrancar:  docker compose up -d
+# Parar:     docker compose down
+services:
+  gosom:
+    image: gosom/google-maps-scraper:latest
+    command: ["-data-folder", "/gmapsdata"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./.gosom-data:/gmapsdata
+      - gosom-playwright-cache:/opt
+    restart: unless-stopped
+
+volumes:
+  gosom-playwright-cache:

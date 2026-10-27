@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+/*
+ * ─── TEMA ──────────────────────────────────────────────────────────────
+ * Todos los colores salen de estas variables. Para ajustar el tema, cambia
+ * solo los valores de aquí; los componentes usan clases como bg-surface,
+ * text-fg, border-line o text-primary.
+ *
+ * El tema activo lo fija <html data-theme="light|dark"> (ver src/lib/theme.ts).
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+[data-theme="light"] {
+  /* Claro: blanco, grises y negro */
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface-2: #f6f6f6;
+  --line: #e7e7e7;
+  --line-strong: #d6d6d6;
+  --fg: #0a0a0a;
+  --fg-2: #3d3d3d;
+  --muted: #737373;
+  --primary: #0a0a0a; /* acento: botones principales, selección, foco */
+  --primary-hover: #2a2a2a;
+  --primary-fg: #ffffff;
+  --primary-soft: #efefef;
+  --primary-track: #e6e6e6;
+  --chart: #262626; /* barras y medidores */
+  --skeleton: #ececec;
+  /* Estados: tonos apagados, solo en indicadores pequeños */
+  --success: #2f7a55;
+  --success-soft: #edf5f0;
+  --warning: #8a6a1f;
+  --warning-soft: #f7f2e6;
+  --danger: #b0413e;
+  --danger-soft: #f8ecec;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 6px rgb(0 0 0 / 0.03);
+  --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  /* Oscuro: negro, grises y blanco */
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1b1b1b;
+  --line: #262626;
+  --line-strong: #333333;
+  --fg: #f5f5f5;
+  --fg-2: #cfcfcf;
+  --muted: #8c8c8c;
+  --primary: #f5f5f5;
+  --primary-hover: #dcdcdc;
+  --primary-fg: #0a0a0a;
+  --primary-soft: #232323;
+  --primary-track: #2b2b2b;
+  --chart: #e0e0e0;
+  --skeleton: #262626;
+  --success: #6fbf94;
+  --success-soft: #16231c;
+  --warning: #d2b066;
+  --warning-soft: #26210f;
+  --danger: #e08482;
+  --danger-soft: #2a1717;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  --pop-shadow: 0 16px 40px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-track: var(--primary-track);
+  --color-chart: var(--chart);
+  --color-skeleton: var(--skeleton);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --shadow-card: var(--card-shadow);
+  --shadow-pop: var(--pop-shadow);
+  --radius-card: 14px;
+  --font-sans: "Schibsted Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+  }
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+  svg.lucide {
+    flex-shrink: 0;
+  }
+  ::selection {
+    background: var(--primary-track);
+  }
+}
+
+/* Piezas reutilizables. */
+@layer components {
+  .card {
+    @apply rounded-card border border-line bg-surface shadow-card;
+  }
+  .card-head {
+    @apply flex items-center justify-between gap-3 px-5 pt-4 pb-3;
+  }
+  .card-title {
+    @apply text-[15px] font-semibold text-fg;
+  }
+  .card-sub {
+    @apply text-[13px] text-muted;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-fg transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-primary bg-primary text-primary-fg hover:border-primary-hover hover:bg-primary-hover;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-fg-2 hover:bg-surface-2 hover:text-fg;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-[13px];
+  }
+  .input {
+    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-fg placeholder:text-muted transition-colors focus:border-primary focus:outline-none focus:ring-3 focus:ring-primary-soft;
+  }
+  .label {
+    @apply text-[13px] font-medium text-fg-2;
+  }
+  .hint {
+    @apply text-[12.5px] text-muted;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
