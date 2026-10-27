@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { getDoc, listDocs } from "@/server/docs";
 import { HelpLayout } from "@/components/help/HelpLayout";
+import { Skeleton } from "@/components/ui";
 
 export function generateStaticParams() {
   return listDocs().map((d) => ({ slug: d.slug }));
@@ -13,7 +15,36 @@ export async function generateMetadata({ params }: PageProps<"/ayuda/[slug]">) {
   return { title: doc ? `${doc.title} · Ayuda` : "Ayuda", description: doc?.description };
 }
 
-export default async function Page({ params }: PageProps<"/ayuda/[slug]">) {
+export default function Page({ params }: PageProps<"/ayuda/[slug]">) {
+  // Leer params dentro de Suspense mantiene instantánea la navegación: el marco
+  // se muestra al momento y la guía llega después (todas se prerenderizan igualmente).
+  return (
+    <Suspense fallback={<DocSkeleton />}>
+      <Doc params={params} />
+    </Suspense>
+  );
+}
+
+function DocSkeleton() {
+  return (
+    <>
+      <Skeleton className="mb-3 h-5 w-20" />
+      <Skeleton className="mb-2 h-8 w-64" />
+      <Skeleton className="mb-8 h-5 w-96 max-w-full" />
+      {/* current que no coincide con ninguna guía: nada resaltado mientras carga */}
+      <HelpLayout docs={listDocs()} current="…">
+        <div className="card flex flex-col gap-3 px-5 py-6 sm:px-8">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+      </HelpLayout>
+    </>
+  );
+}
+
+async function Doc({ params }: { params: PageProps<"/ayuda/[slug]">["params"] }) {
   const { slug } = await params;
   const docs = listDocs();
   const i = docs.findIndex((d) => d.slug === slug);
