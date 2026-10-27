@@ -14,6 +14,8 @@ export interface LeadFilters {
   hasEmail?: boolean;
   hasPhone?: boolean;
   hasWebsite?: boolean;
+  /** Solo negocios sin web (oportunidad para ofrecerles una). */
+  noWebsite?: boolean;
   minScore?: number;
   /** Etiqueta (manual o automática "auto:…"). */
   tag?: string;
@@ -51,6 +53,7 @@ export function filterLeads<T extends Lead>(leads: T[], f: LeadFilters, ctx: Que
     if (f.hasEmail && l.emails.length === 0) return false;
     if (f.hasPhone && !l.phone) return false;
     if (f.hasWebsite && !l.website) return false;
+    if (f.noWebsite && l.website) return false;
     if (f.minScore !== undefined && leadScore(l) < f.minScore) return false;
     const crm = l as Partial<SavedLead>;
     if (f.tag) {
@@ -75,12 +78,13 @@ export function sortLeads<T extends Lead>(leads: T[], sort?: LeadSort, fields: L
   return [...leads].sort((a, b) => {
     const va = field.value(a);
     const vb = field.value(b);
-    // Los vacíos siempre al final, independientemente de la dirección.
+    // Los vacíos ("—") cuentan como el valor más bajo: primero de menor a
+    // mayor y últimos de mayor a menor.
     const ea = va === undefined || va === "";
     const eb = vb === undefined || vb === "";
     if (ea && eb) return 0;
-    if (ea) return 1;
-    if (eb) return -1;
+    if (ea) return -mul;
+    if (eb) return mul;
     if (typeof va === "number" && typeof vb === "number") return (va - vb) * mul;
     return String(va).localeCompare(String(vb), "es", { sensitivity: "base" }) * mul;
   });
@@ -91,7 +95,7 @@ export function queryLeads<T extends Lead>(leads: T[], filters: LeadFilters, sor
 }
 
 const NUM_KEYS = ["minRating", "minReviews", "minScore"] as const;
-const BOOL_KEYS = ["hasEmail", "hasPhone", "hasWebsite"] as const;
+const BOOL_KEYS = ["hasEmail", "hasPhone", "hasWebsite", "noWebsite"] as const;
 const STR_KEYS = ["q", "category", "tag", "stage", "color"] as const;
 
 /** Serializa filtros y orden a parámetros de URL (para la exportación). */
