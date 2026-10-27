@@ -40,6 +40,7 @@ export function TaskNotifier() {
       const now = Date.now();
       const notified = readNotified();
       const due = tasks.filter((t) => {
+        if (!t.dueAt) return false; // sin fecha: no hay nada que avisar
         const at = new Date(t.dueAt).getTime();
         return !t.done && at <= now && now - at < WINDOW_MS && !notified.has(t.id);
       });
@@ -47,7 +48,7 @@ export function TaskNotifier() {
       for (const t of due) {
         notified.add(t.id);
         void showNotification(t.title, {
-          body: `${t.leadName} · ${formatDue(t.dueAt)}`,
+          body: `${t.leadName} · ${formatDue(t.dueAt!)}`,
           tag: t.id,
           url: t.leadExists ? `/leads?lead=${t.leadId}` : "/tareas",
         });
@@ -83,7 +84,7 @@ export function TaskNotifier() {
               ) : (
                 t.leadName
               )}{" "}
-              · {formatDue(t.dueAt)}
+              · {formatDue(t.dueAt!)}
             </p>
           </div>
           <button className="text-muted hover:text-fg" onClick={() => setToasts((l) => l.filter((x) => x.id !== t.id))} aria-label="Cerrar aviso">

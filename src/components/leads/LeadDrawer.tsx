@@ -5,6 +5,7 @@ import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Tra
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
+import { compareTasks } from "@/core/calendar";
 import { api, postJson, useData } from "../data/DataProvider";
 import { TaskForm, TaskRow } from "../tasks/TaskParts";
 import { ContactPanel } from "./ContactPanel";
@@ -56,7 +57,8 @@ export function LeadDrawer({
   const { tasks } = useData();
   const leadTasks = tasks
     .filter((t) => t.leadId === initial.id)
-    .sort((a, b) => Number(a.done) - Number(b.done) || a.dueAt.localeCompare(b.dueAt));
+    .sort(compareTasks);
+  const pendingTasks = leadTasks.filter((t) => !t.done).length;
 
   // Datos frescos del servidor y foco inicial.
   useEffect(() => {
@@ -148,7 +150,7 @@ export function LeadDrawer({
           <ContactPanel lead={lead} settings={settings} onLog={patch} />
         </Section>
 
-        <Section title={`Tareas${leadTasks.filter((t) => !t.done).length ? ` (${leadTasks.filter((t) => !t.done).length} pendientes)` : ""}`}>
+        <Section title={`Tareas${pendingTasks ? ` (${pendingTasks} ${pendingTasks === 1 ? "pendiente" : "pendientes"})` : ""}`}>
           <TaskForm leadId={lead.id} />
           {leadTasks.length > 0 && (
             <ul className="-mx-1 divide-y divide-line">

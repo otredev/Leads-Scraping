@@ -4,6 +4,7 @@ import { defineStorage, type LeadStore } from "@/core/storage";
 import { randomUUID } from "node:crypto";
 import { dedupeLeads, leadDedupeKey, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
+import { compareTasks } from "@/core/calendar";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 
@@ -270,7 +271,7 @@ class JsonFileStore implements LeadStore {
 
   async listTasks(opts: { leadId?: string } = {}) {
     const all = await this.read<Task[]>(this.tasksFile, []);
-    return all.filter((t) => !opts.leadId || t.leadId === opts.leadId).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+    return all.filter((t) => !opts.leadId || t.leadId === opts.leadId).sort(compareTasks);
   }
 
   createTask(task: Task) {

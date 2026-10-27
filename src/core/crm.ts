@@ -87,8 +87,8 @@ export interface Task {
   /** Copia del nombre del lead para listarlas sin cargar el lead. */
   leadName: string;
   title: string;
-  /** Fecha y hora (ISO). */
-  dueAt: string;
+  /** Fecha y hora (ISO). Opcional: sin fecha es una tarea "cuando se pueda". */
+  dueAt?: string;
   done: boolean;
   doneAt?: string;
   createdAt: string;

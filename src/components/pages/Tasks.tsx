@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
-import { Bell, BellOff, ChevronDown } from "lucide-react";
+import { Bell, BellOff, CalendarDays, ChevronDown } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { useData, type TaskView } from "../data/DataProvider";
 import { TaskRow } from "../tasks/TaskParts";
@@ -30,6 +30,7 @@ const SECTIONS = [
   { id: "overdue", title: "Vencidas", empty: "Nada vencido." },
   { id: "today", title: "Hoy", empty: "Nada más para hoy." },
   { id: "upcoming", title: "Próximas", empty: "Sin tareas programadas." },
+  { id: "nodate", title: "Sin fecha", empty: "Todas tus tareas tienen fecha." },
 ] as const;
 
 /** Agenda: tareas de todos los leads agrupadas por cuándo vencen. */
@@ -52,25 +53,30 @@ export function Tasks() {
         title="Tareas"
         description="Seguimientos de tus leads. Créalas desde la ficha de cada lead."
         actions={
-          perm === "default" ? (
-            <button
-              className="btn"
-              onClick={async () => {
-                await Notification.requestPermission();
-                permListeners.forEach((l) => l());
-              }}
-            >
-              <Bell className="size-4" aria-hidden /> Activar avisos del navegador
-            </button>
-          ) : perm === "granted" ? (
-            <span className="badge border border-line text-fg-2">
-              <Bell className="size-3.5" aria-hidden /> Avisos activados
-            </span>
-          ) : perm === "denied" ? (
-            <span className="badge border border-line text-muted" title="Puedes permitirlas en la configuración del sitio del navegador">
-              <BellOff className="size-3.5" aria-hidden /> Avisos bloqueados en el navegador
-            </span>
-          ) : null
+          <>
+            <Link href="/calendario" className="btn">
+              <CalendarDays className="size-4" aria-hidden /> Ver calendario
+            </Link>
+            {perm === "default" ? (
+              <button
+                className="btn"
+                onClick={async () => {
+                  await Notification.requestPermission();
+                  permListeners.forEach((l) => l());
+                }}
+              >
+                <Bell className="size-4" aria-hidden /> Activar avisos del navegador
+              </button>
+            ) : perm === "granted" ? (
+              <span className="badge border border-line text-fg-2">
+                <Bell className="size-3.5" aria-hidden /> Avisos activados
+              </span>
+            ) : perm === "denied" ? (
+              <span className="badge border border-line text-muted" title="Puedes permitirlas en la configuración del sitio del navegador">
+                <BellOff className="size-3.5" aria-hidden /> Avisos bloqueados en el navegador
+              </span>
+            ) : null}
+          </>
         }
       />
 
@@ -89,11 +95,11 @@ export function Tasks() {
             </Link>
           }
         >
-          Abre un lead y añade una tarea con fecha y hora: &ldquo;Llamar el lunes a las 10&rdquo;. Te avisaré cuando llegue el momento y podrás
-          llevarla a tu calendario.
+          Abre un lead y añade una tarea: &ldquo;Llamar el lunes a las 10&rdquo;. La fecha es opcional; si la pones, te avisaré cuando llegue el
+          momento y podrás llevarla a tu calendario.
         </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-4">
           {SECTIONS.map((s) => {
             const list = groups.get(s.id) ?? [];
             return (

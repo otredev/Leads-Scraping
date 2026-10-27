@@ -20,7 +20,14 @@ function details(task: Task, lead?: Partial<Lead>) {
     .join("\n");
 }
 
-export function googleCalendarLink(task: Task, lead?: Partial<Lead>): string {
+type DatedTask = Task & { dueAt: string };
+
+/** ¿Tiene fecha? (solo esas se pueden llevar al calendario o avisar). */
+export function hasDue(task: Pick<Task, "dueAt">): task is DatedTask {
+  return Boolean(task.dueAt) && !Number.isNaN(new Date(task.dueAt!).getTime());
+}
+
+export function googleCalendarLink(task: DatedTask, lead?: Partial<Lead>): string {
   const start = new Date(task.dueAt);
   const end = new Date(start.getTime() + DURATION_MIN * 60_000);
   const p = new URLSearchParams({
@@ -36,7 +43,7 @@ export function googleCalendarLink(task: Task, lead?: Partial<Lead>): string {
 const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/[,;]/g, (m) => `\\${m}`).replace(/\n/g, "\\n");
 
 /** Archivo .ics (Outlook, Apple Calendar…) con un aviso 15 minutos antes. */
-export function icsForTask(task: Task, lead?: Partial<Lead>): string {
+export function icsForTask(task: DatedTask, lead?: Partial<Lead>): string {
   const start = new Date(task.dueAt);
   const end = new Date(start.getTime() + DURATION_MIN * 60_000);
   return [
@@ -61,7 +68,7 @@ export function icsForTask(task: Task, lead?: Partial<Lead>): string {
   ].join("\r\n");
 }
 
-export function downloadIcs(task: Task, lead?: Partial<Lead>) {
+export function downloadIcs(task: DatedTask, lead?: Partial<Lead>) {
   const blob = new Blob([icsForTask(task, lead)], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -72,8 +79,11 @@ export function downloadIcs(task: Task, lead?: Partial<Lead>) {
 }
 
 /** Agrupa tareas para la agenda. */
-export function taskBucket(task: Pick<Task, "dueAt" | "done">, now = new Date()): "done" | "overdue" | "today" | "upcoming" {
+export type TaskBucket = "done" | "overdue" | "today" | "upcoming" | "nodate";
+
+export function taskBucket(task: Pick<Task, "dueAt" | "done">, now = new Date()): TaskBucket {
   if (task.done) return "done";
+  if (!hasDue(task)) return "nodate";
   const due = new Date(task.dueAt);
   if (due < now) return "overdue";
   const end = new Date(now);
@@ -85,4 +95,51 @@ export function taskBucket(task: Pick<Task, "dueAt" | "done">, now = new Date())
 export function toLocalInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Orden de tareas: pendientes primero; con fecha (de antes a después) y luego sin fecha (más recientes primero). */
+export function compareTasks(a: Pick<Task, "done" | "dueAt" | "createdAt">, b: Pick<Task, "done" | "dueAt" | "createdAt">): number {
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  if (a.dueAt && b.dueAt) return a.dueAt.localeCompare(b.dueAt);
+  if (a.dueAt) return -1;
+  if (b.dueAt) return 1;
+  return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+}
+
+// ── Calendario interno (fechas en hora local) ──
+
+/** "2026-10-27" en hora local. */
+export function dayKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+/** Lunes de la semana de `d`, a las 00:00. */
+export function startOfWeek(d: Date): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return addDays(x, -((x.getDay() + 6) % 7));
+}
+
+/** 42 días (6 semanas, de lunes a domingo) que cubren el mes de `month`. */
+export function monthGrid(month: Date): Date[] {
+  const start = startOfWeek(new Date(month.getFullYear(), month.getMonth(), 1));
+  return Array.from({ length: 42 }, (_, i) => addDays(start, i));
+}
+
+/** Mueve una fecha a otro día conservando la hora (o a las `hour` si no tenía). */
+export function moveToDay(day: Date, previous?: string, hour = 10): Date {
+  const d = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  if (previous) {
+    const p = new Date(previous);
+    d.setHours(p.getHours(), p.getMinutes(), 0, 0);
+  } else {
+    d.setHours(hour, 0, 0, 0);
+  }
+  return d;
 }

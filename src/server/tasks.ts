@@ -11,7 +11,9 @@ function cleanTitle(v: unknown) {
   return t;
 }
 
-function cleanDate(v: unknown) {
+/** Fecha opcional: vacía o null = sin fecha. */
+function cleanDate(v: unknown): string | undefined {
+  if (v === undefined || v === null || v === "") return undefined;
   const d = typeof v === "string" ? new Date(v) : undefined;
   if (!d || Number.isNaN(d.getTime())) throw badRequest("Fecha no válida");
   return d.toISOString();
@@ -27,7 +29,7 @@ export async function createTask(raw: unknown): Promise<Task> {
     leadId: lead.id,
     leadName: lead.name,
     title: cleanTitle(r.title),
-    dueAt: cleanDate(r.dueAt),
+    ...(cleanDate(r.dueAt) ? { dueAt: cleanDate(r.dueAt) } : {}),
     done: false,
     createdAt: new Date().toISOString(),
   };
@@ -39,12 +41,14 @@ export async function updateTask(id: string, raw: unknown) {
   const r = (raw ?? {}) as Record<string, unknown>;
   const patch: Partial<Task> = {};
   if (r.title !== undefined) patch.title = cleanTitle(r.title);
+  // null o "" quita la fecha (queda undefined y el almacenamiento la borra).
   if (r.dueAt !== undefined) patch.dueAt = cleanDate(r.dueAt);
+  const changes = Object.keys(r).filter((k) => ["title", "dueAt", "done"].includes(k));
   if (typeof r.done === "boolean") {
     patch.done = r.done;
     patch.doneAt = r.done ? new Date().toISOString() : undefined;
   }
-  if (!Object.keys(patch).length) throw badRequest("No hay cambios");
+  if (!changes.length) throw badRequest("No hay cambios");
   const task = await getStore().updateTask(id, patch);
   if (!task) throw Object.assign(new Error("Tarea no encontrada"), { status: 404 });
   return task;

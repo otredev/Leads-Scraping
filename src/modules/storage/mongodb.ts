@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { MongoClient, type AnyBulkWriteOperation, type Db, type UpdateFilter } from "mongodb";
 import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
+import { compareTasks } from "@/core/calendar";
 import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "@/core/storage";
 import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
@@ -345,8 +346,8 @@ class MongoStore implements LeadStore {
   // ── Tareas ──
 
   async listTasks(opts: { leadId?: string } = {}) {
-    const docs = await (await tasks()).find(opts.leadId ? { leadId: opts.leadId } : {}).sort({ dueAt: 1 }).toArray();
-    return docs.map((d) => fromDoc<Task>(d) as Task);
+    const docs = await (await tasks()).find(opts.leadId ? { leadId: opts.leadId } : {}).toArray();
+    return docs.map((d) => fromDoc<Task>(d) as Task).sort(compareTasks);
   }
 
   async createTask(task: Task) {

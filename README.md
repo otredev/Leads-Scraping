@@ -96,7 +96,8 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 
 - **Contactar** (en la ficha del lead): abre WhatsApp o tu correo con una plantilla ya rellenada, llama o copia el teléfono/email. Cada acción queda en el *historial de contacto* y actualiza la columna "Último contacto". Los leads marcados como "no contactar" tienen los botones desactivados.
 - **Plantillas** (Ajustes → Plantillas de mensaje): textos de WhatsApp o email con variables `{nombre}`, `{categoria}`, `{direccion}`, `{telefono}`, `{email}`, `{web}`, `{valoracion}`, `{resenas}` y `{etapa}`, con vista previa.
-- **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La página **Tareas** las agrupa en vencidas, hoy y próximas, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y, si lo permites, con notificaciones del navegador (solo mientras la app esté abierta). Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
+- **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La fecha es opcional: puedes ponerla, cambiarla o quitarla después desde el menú de la tarea. La página **Tareas** las agrupa en vencidas, hoy, próximas y sin fecha, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y, si lo permites, con notificaciones del navegador (solo mientras la app esté abierta). Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
+- **Calendario**: las tareas por mes o por semana, con el color de la etapa de cada lead. Arrastra una tarea a otro día para cambiarla de fecha (conserva la hora), arrastra las "sin fecha" a un día para programarlas, y crea tareas directamente en un día eligiendo el lead.
 - **Mapa**: vista de los leads filtrados sobre OpenStreetMap (Leaflet, gratis), coloreados por etapa. Útil para planificar visitas por zona. Los leads importados sin coordenadas no aparecen.
 - **Panel**: embudo de conversión por etapa (% contactados y % en la última etapa) y las tareas para hoy.
 
@@ -125,7 +126,7 @@ En **Ajustes → Claude (MCP)** tienes la dirección y los comandos listos para 
 | `update_lead` / `trash_leads` | Etapa, color, etiquetas, notas, "no contactar"; mover a la papelera |
 | `start_search` / `get_search` / `list_searches` | Lanzar búsquedas en Google Maps y seguir su progreso |
 | `list_results` / `save_results` | Ver lo encontrado y guardarlo en el CRM |
-| `list_tasks` / `create_task` / `complete_task` | Tareas de seguimiento |
+| `list_tasks` / `create_task` / `update_task` / `complete_task` | Tareas de seguimiento (la fecha es opcional) |
 | `draft_message` / `log_contact` | Rellenar una plantilla de WhatsApp o email y registrar el contacto |
 | `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink y guardar su enlace |
 
@@ -178,7 +179,7 @@ src/
 ├── app/api/                 REST: modules, searches, results, leads, tasks, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
-│   ├── pages/               Panel, Búsquedas, Resultados, Leads, Papelera, Ajustes
+│   ├── pages/               Panel, Búsquedas, Resultados, Leads, Tareas, Calendario, Papelera, Ajustes
 │   ├── leads/               Tabla, lista, tablero, ficha, barra de acciones y filtros
 │   ├── settings/            Gestión de etapas y etiquetas
 │   ├── charts/              Gráficos ligeros en HTML/CSS (sin librerías)
@@ -315,7 +316,7 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 
 
 # Otros:
-- Pagina de solo clientes para administrar las tareas y proyectos desde ahi. (analizar, preguntar a claudio)
+- Pagina de solo clientes para administrar las tareas y proyectos desde ahi.
 - Buscar mas proveedores para cuando le de actualizar pueda usar otro proveedor que me pueda complementar datos como por ej los socials
 - Crear calendario interno
 - Notificaciones push

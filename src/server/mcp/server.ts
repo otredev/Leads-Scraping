@@ -6,7 +6,7 @@ import { CONTACT_CHANNELS, LABEL_COLORS, type ContactChannel, type CrmSettings, 
 import { buildFields } from "@/core/fields";
 import { queryLeads, type LeadFilters, type LeadSort } from "@/core/query";
 import { autoTags, leadScore } from "@/core/score";
-import { taskBucket, googleCalendarLink } from "@/core/calendar";
+import { taskBucket, googleCalendarLink, hasDue } from "@/core/calendar";
 import { mailtoLink, renderTemplate, whatsappLink } from "@/core/templates";
 import { otrelinkBrief, otrelinkPrompt } from "@/core/otrelink";
 import { createTag, saveResults, trashSaved, updateSaved } from "../crm";
@@ -158,7 +158,7 @@ export function createMcpServer() {
     run(async () => {
       const store = getStore();
       const [stats, settings, tasks] = await Promise.all([getStats(), store.getSettings(), store.listTasks()]);
-      const buckets = { overdue: 0, today: 0, upcoming: 0 };
+      const buckets = { overdue: 0, today: 0, upcoming: 0, nodate: 0 };
       for (const t of tasks) {
         const b = taskBucket(t);
         if (b !== "done") buckets[b]++;
@@ -394,10 +394,10 @@ export function createMcpServer() {
     "list_tasks",
     {
       title: "Tareas",
-      description: "Tareas de seguimiento. Por defecto las pendientes (vencidas, hoy y próximas).",
+      description: "Tareas de seguimiento. Por defecto las pendientes (vencidas, hoy, próximas y sin fecha).",
       inputSchema: {
         leadId: z.string().optional(),
-        status: z.enum(["pending", "overdue", "today", "upcoming", "done", "all"]).optional(),
+        status: z.enum(["pending", "overdue", "today", "upcoming", "nodate", "done", "all"]).optional().describe("nodate = sin fecha"),
       },
       annotations: { readOnlyHint: true },
     },
@@ -414,16 +414,16 @@ export function createMcpServer() {
     "create_task",
     {
       title: "Crear tarea",
-      description: "Crea una tarea de seguimiento para un lead. La app avisa cuando vence. Devuelve también un enlace para añadirla a Google Calendar.",
+      description: "Crea una tarea de seguimiento para un lead. La fecha es opcional; si la tiene, la app avisa cuando vence y se devuelve un enlace para Google Calendar.",
       inputSchema: {
         leadId: z.string(),
         title: z.string().min(1).max(200),
-        dueAt: z.string().describe("Fecha y hora ISO 8601 con zona, p. ej. 2026-11-02T10:00:00+01:00"),
+        dueAt: z.string().optional().describe("Opcional. Fecha y hora ISO 8601 con zona, p. ej. 2026-11-02T10:00:00+01:00"),
       },
     },
-    run(async (a: { leadId: string; title: string; dueAt: string }) => {
+    run(async (a: { leadId: string; title: string; dueAt?: string }) => {
       const task = await createTask(a);
-      return { ...task, googleCalendar: googleCalendarLink(task) };
+      return { ...task, googleCalendar: hasDue(task) ? googleCalendarLink(task) : undefined };
     }),
   );
 
@@ -435,6 +435,16 @@ export function createMcpServer() {
       inputSchema: { id: z.string(), done: z.boolean().optional() },
     },
     run(async ({ id, done = true }: { id: string; done?: boolean }) => updateTask(id, { done })),
+  );
+
+  server.registerTool(
+    "update_task",
+    {
+      title: "Cambiar tarea",
+      description: "Cambia el título o la fecha de una tarea. dueAt null quita la fecha.",
+      inputSchema: { id: z.string(), title: z.string().min(1).max(200).optional(), dueAt: z.string().nullable().optional() },
+    },
+    run(async ({ id, ...patch }: { id: string; title?: string; dueAt?: string | null }) => updateTask(id, patch)),
   );
 
   // ── Contacto ──
