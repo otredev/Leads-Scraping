@@ -3,12 +3,14 @@ import { LEAD_FIELDS } from "@/core/fields";
 import { resolveOptions } from "@/core/options";
 import { fromSearchParams, queryLeads } from "@/core/query";
 import { getExporter, getStore } from "@/server/registry";
+import { handle } from "@/server/http";
 
 /**
- * GET /api/export?format=csv&searchId=…&fields=name,phone&<filtros>&<opciones del exportador>
+ * GET /api/export?format=csv&scope=results|saved&searchId=…&fields=name,phone&<filtros>&<opciones>
+ *   scope=results (por defecto): resultados de búsqueda; scope=saved: leads guardados.
  * Aplica exactamente los mismos filtros y orden que la tabla.
  */
-export async function GET(request: NextRequest) {
+export const GET = handle(async (request: NextRequest) => {
   const p = request.nextUrl.searchParams;
   const exporter = getExporter(p.get("format") || "csv");
   if (!exporter) return Response.json({ error: "Formato desconocido" }, { status: 400 });
@@ -16,7 +18,9 @@ export async function GET(request: NextRequest) {
   const store = getStore();
   const searchId = p.get("searchId") || undefined;
   const { filters, sort } = fromSearchParams(p);
-  const leads = queryLeads(await store.listLeads(searchId), filters, sort);
+  const scope = p.get("scope") === "saved" ? "saved" : "results";
+  const source = scope === "saved" ? await store.listSavedLeads() : await store.listLeads(searchId);
+  const leads = queryLeads(source, filters, sort);
 
   const wanted = p.get("fields")?.split(",").filter(Boolean);
   const fields = wanted?.length ? LEAD_FIELDS.filter((f) => wanted.includes(f.key)) : LEAD_FIELDS;
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
   const body = exporter.export(leads, fields, options);
 
   const search = searchId ? await store.getSearch(searchId) : undefined;
-  const base = (search?.name || "todos-los-leads")
+  const base = (search?.name || (scope === "saved" ? "guardados" : "todos-los-resultados"))
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
@@ -41,4 +45,4 @@ export async function GET(request: NextRequest) {
       "Cache-Control": "no-store",
     },
   });
-}
+});

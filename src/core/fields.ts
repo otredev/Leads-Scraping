@@ -49,6 +49,14 @@ export const LEAD_FIELDS: LeadField[] = [
     defaultVisible: true,
   },
   { key: "phone", label: "Teléfono", kind: "text", value: (l) => l.phone, format: (l) => text(l.phone), defaultVisible: true },
+  {
+    key: "phoneE164",
+    label: "Teléfono (E.164)",
+    kind: "text",
+    value: (l) => l.phoneE164,
+    format: (l) => text(l.phoneE164),
+    defaultVisible: false,
+  },
   { key: "website", label: "Web", kind: "url", value: (l) => l.website, format: (l) => text(l.website), defaultVisible: true },
   { key: "address", label: "Dirección", kind: "text", value: (l) => l.address, format: (l) => text(l.address), defaultVisible: true },
   {

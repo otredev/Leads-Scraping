@@ -4,7 +4,13 @@ import type { Lead, LeadInput } from "@/core/lead";
 import type { RunContext } from "@/core/provider";
 import type { Search, SearchParams } from "@/core/search";
 import { resolveOptions } from "@/core/options";
+import { withNormalizedPhone } from "@/core/phone";
 import { getProvider, getStore } from "./registry";
+
+/** País por defecto para teléfonos sin prefijo internacional. */
+export function defaultCountry() {
+  return (process.env.DEFAULT_COUNTRY || "ES").toUpperCase();
+}
 
 /**
  * Ejecuta búsquedas en segundo plano dentro del propio proceso de Next.js.
@@ -23,6 +29,7 @@ export interface StartSearchInput {
   providerId: string;
   queries: string[];
   lang?: string;
+  country?: string;
   limit?: number;
   options?: unknown;
 }
@@ -37,11 +44,15 @@ export async function startSearch(input: StartSearchInput): Promise<Search> {
   const lang = (input.lang || "es").trim().toLowerCase();
   if (!/^[a-z]{2}$/.test(lang)) throw new Error("El idioma debe ser un código de 2 letras (es, en…).");
 
+  const country = (input.country || defaultCountry()).trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(country)) throw new Error("El país debe ser un código de 2 letras (ES, MX, US…).");
+
   const limit = input.limit && input.limit > 0 ? Math.floor(input.limit) : undefined;
 
   const params: SearchParams = {
     queries,
     lang,
+    country,
     limit,
     options: resolveOptions(provider.options, input.options),
   };
@@ -86,7 +97,7 @@ async function execute(search: Search): Promise<void> {
       await store.updateSearch(search.id, { checkpoint: data });
     },
     progress: (p) => {
-      void store.updateSearch(search.id, { progress: p });
+      void store.updateSearch(search.id, { progress: p }).catch(() => undefined);
     },
     emit: async (inputs: LeadInput[]) => {
       let batch = inputs;
@@ -94,7 +105,7 @@ async function execute(search: Search): Promise<void> {
       if (batch.length === 0) return;
       const now = new Date().toISOString();
       const leads: Lead[] = batch.map((l) => ({
-        ...l,
+        ...withNormalizedPhone(l, search.params.country ?? defaultCountry()),
         emails: l.emails ?? [],
         reviews: l.reviews ?? [],
         extra: l.extra ?? {},
@@ -167,10 +178,31 @@ export async function deleteSearch(id: string): Promise<void> {
 export async function resumeInterrupted(): Promise<void> {
   if (g.__resumed) return;
   g.__resumed = true;
-  const searches = await getStore().listSearches();
+  let searches: Search[];
+  try {
+    searches = await getStore().listSearches();
+  } catch (err) {
+    g.__resumed = false; // reintentar en la próxima petición
+    throw err;
+  }
   for (const s of searches) {
     if ((s.status === "running" || s.status === "queued") && !running.has(s.id)) {
       void execute(s);
     }
   }
+}
+
+/** Lanza de nuevo una búsqueda del historial con los mismos parámetros. */
+export async function rerunSearch(id: string): Promise<Search> {
+  const prev = await getStore().getSearch(id);
+  if (!prev) throw new Error("Búsqueda no encontrada");
+  return startSearch({
+    name: prev.name,
+    providerId: prev.providerId,
+    queries: prev.params.queries,
+    lang: prev.params.lang,
+    country: prev.params.country,
+    limit: prev.params.limit,
+    options: prev.params.options,
+  });
 }

@@ -21,5 +21,6 @@ export interface ModulesInfo {
   sources: SourceDefinition[];
   providers: ProviderInfo[];
   exporters: ExporterInfo[];
-  storage: { id: string };
+  storage: { id: string; label: string; health: HealthStatus; localDataAvailable: boolean };
+  defaults: { country: string; lang: string; trashDays: number };
 }

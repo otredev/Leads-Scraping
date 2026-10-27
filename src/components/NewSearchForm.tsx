@@ -12,11 +12,32 @@ interface Props {
   onCreated(search: Search): void;
 }
 
+/** Países habituales; el número se interpreta con este prefijo si no trae uno. */
+const COUNTRIES: [string, string][] = [
+  ["ES", "España (+34)"],
+  ["MX", "México (+52)"],
+  ["AR", "Argentina (+54)"],
+  ["CO", "Colombia (+57)"],
+  ["CL", "Chile (+56)"],
+  ["PE", "Perú (+51)"],
+  ["VE", "Venezuela (+58)"],
+  ["EC", "Ecuador (+593)"],
+  ["UY", "Uruguay (+598)"],
+  ["DO", "Rep. Dominicana (+1)"],
+  ["US", "Estados Unidos (+1)"],
+  ["PT", "Portugal (+351)"],
+  ["FR", "Francia (+33)"],
+  ["IT", "Italia (+39)"],
+  ["DE", "Alemania (+49)"],
+  ["GB", "Reino Unido (+44)"],
+];
+
 export function NewSearchForm({ modules, onCreated }: Props) {
   const [providerId, setProviderId] = useState(modules.providers[0]?.id ?? "");
   const provider = modules.providers.find((p) => p.id === providerId);
   const [queries, setQueries] = useState("");
-  const [lang, setLang] = useState("es");
+  const [lang, setLang] = useState(modules.defaults.lang);
+  const [country, setCountry] = useState(modules.defaults.country);
   const [limit, setLimit] = useState("");
   const [options, setOptions] = useState<Record<string, OptionValues>>({});
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -38,6 +59,7 @@ export function NewSearchForm({ modules, onCreated }: Props) {
           providerId,
           queries: queries.split("\n"),
           lang,
+          country,
           limit: limit ? Number(limit) : undefined,
           options: values,
         }),
@@ -113,8 +135,22 @@ export function NewSearchForm({ modules, onCreated }: Props) {
                 <input id="lang" className="input" value={lang} maxLength={2} onChange={(e) => setLang(e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
+                <label htmlFor="country" className="label">
+                  País (teléfonos)
+                </label>
+                <select id="country" className="input" value={country} onChange={(e) => setCountry(e.target.value)}>
+                  {[...new Set([country, ...COUNTRIES.map((c) => c[0])])].map((code) => (
+                    <option key={code} value={code}>
+                      {COUNTRIES.find((c) => c[0] === code)?.[1] ?? code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
                 <label htmlFor="limit" className="label">
-                  Máx. leads
+                  Máx. resultados
                 </label>
                 <input
                   id="limit"

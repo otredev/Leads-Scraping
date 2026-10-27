@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AtSign, Phone, Plus, Search as SearchIcon, Star, Users } from "lucide-react";
+import { AtSign, Bookmark, Phone, Plus, Search as SearchIcon } from "lucide-react";
 import type { LeadStats } from "@/core/stats";
 import { useData } from "../data/DataProvider";
 import { BarList, ColumnChart, MeterRow } from "../charts";
@@ -28,7 +28,7 @@ const dayFmt = new Intl.DateTimeFormat("es", { day: "numeric", month: "short", t
 
 export function Overview() {
   const { searches, loading } = useData();
-  const [stats, setStats] = useState<LeadStats>();
+  const [stats, setStats] = useState<LeadStats & { saved: number }>();
 
   // Recalcula cuando cambia el número de leads guardados.
   const leadSum = searches.reduce((n, s) => n + s.leadCount, 0);
@@ -36,7 +36,7 @@ export function Overview() {
     let cancelled = false;
     fetch("/api/stats", { cache: "no-store" })
       .then((r) => r.json())
-      .then((s: LeadStats) => !cancelled && setStats(s))
+      .then((s: LeadStats & { saved: number }) => !cancelled && s && typeof s.total === "number" && setStats(s))
       .catch(() => undefined);
     return () => {
       cancelled = true;
@@ -55,7 +55,7 @@ export function Overview() {
     return (
       <>
         <PageHeader title="Panel" description="Resumen de tus leads y búsquedas." />
-        <EmptyState title="Aún no tienes leads" action={newSearch}>
+        <EmptyState title="Aún no has buscado nada" action={newSearch}>
           Lanza tu primera búsqueda en Google Maps, por ejemplo &ldquo;clínicas dentales en Valencia&rdquo;. Los resultados
           aparecerán aquí con sus métricas.
         </EmptyState>
@@ -80,30 +80,31 @@ export function Overview() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:gap-5">
         <StatCard
           hero
-          label="Leads totales"
+          label="Negocios encontrados"
           value={s ? nf.format(s.total) : "—"}
-          icon={<Users className="size-4" />}
-          detail={`${searches.length} búsquedas · sin duplicados`}
+          icon={<SearchIcon className="size-4" />}
+          detail={`En ${searches.length} búsquedas, sin duplicados`}
+        />
+        <StatCard
+          label="Leads guardados"
+          value={s ? nf.format(s.saved) : "—"}
+          icon={<Bookmark className="size-4" />}
+          meter={s ? pct(s.saved, s.total) : 0}
+          detail={s ? `${pct(s.saved, s.total)}% de lo encontrado` : undefined}
         />
         <StatCard
           label="Con email"
           value={s ? `${pct(s.withEmail, s.total)}%` : "—"}
           icon={<AtSign className="size-4" />}
           meter={s ? pct(s.withEmail, s.total) : 0}
-          detail={s ? `${nf.format(s.withEmail)} leads` : undefined}
+          detail={s ? `${nf.format(s.withEmail)} negocios` : undefined}
         />
         <StatCard
           label="Con teléfono"
           value={s ? `${pct(s.withPhone, s.total)}%` : "—"}
           icon={<Phone className="size-4" />}
           meter={s ? pct(s.withPhone, s.total) : 0}
-          detail={s ? `${nf.format(s.withPhone)} leads` : undefined}
-        />
-        <StatCard
-          label="Valoración media"
-          value={s?.avgRating !== undefined ? s.avgRating.toLocaleString("es", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}
-          icon={<Star className="size-4" />}
-          detail="Sobre 5, en Google Maps"
+          detail={s ? `${nf.format(s.withPhone)} negocios` : undefined}
         />
       </div>
 
@@ -124,10 +125,10 @@ export function Overview() {
       )}
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
-        <Card className="xl:col-span-2" title="Leads extraídos" description="Últimos 14 días">
+        <Card className="xl:col-span-2" title="Negocios extraídos" description="Últimos 14 días">
           {s ? (
             <ColumnChart
-              caption="Leads extraídos por día"
+              caption="Negocios extraídos por día"
               labelEvery={4}
               data={s.byDay.map((d) => {
                 const label = dayFmt.format(new Date(d.date));
@@ -138,7 +139,7 @@ export function Overview() {
             <div className="h-[220px]" />
           )}
         </Card>
-        <Card title="Datos de contacto" description="Qué parte de tus leads puedes contactar">
+        <Card title="Datos de contacto" description="Qué parte de lo encontrado puedes contactar">
           {s && (
             <div className="flex flex-col gap-5 pt-1">
               <MeterRow label="Email" value={s.withEmail} total={s.total} />
@@ -154,7 +155,14 @@ export function Overview() {
         <Card title="Categorías" description="Tipos de negocio más frecuentes">
           {s && s.byCategory.length > 0 ? <BarList caption="Leads por categoría" data={s.byCategory} /> : <p className="hint">Sin datos.</p>}
         </Card>
-        <Card title="Valoraciones" description="Cuántos leads hay en cada rango de estrellas">
+        <Card
+          title="Valoraciones"
+          description={
+            s?.avgRating !== undefined
+              ? `Media ${s.avgRating.toLocaleString("es", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} de 5 · negocios por rango de estrellas`
+              : "Negocios por rango de estrellas"
+          }
+        >
           {s && <ColumnChart caption="Leads por rango de valoración" height={170} data={s.ratingBuckets.map((b) => ({ ...b, tip: `${b.label} ★ · ${b.value} leads` }))} />}
         </Card>
       </div>
@@ -187,7 +195,7 @@ export function Overview() {
                   {searches.slice(0, 6).map((r) => (
                     <tr key={r.id} className="border-b border-line last:border-0 hover:bg-surface-2">
                       <td className="max-w-[260px] px-5 py-3">
-                        <Link href={`/leads?search=${r.id}`} className="block truncate font-medium text-fg underline-offset-2 hover:underline">
+                        <Link href={`/resultados?search=${r.id}`} className="block truncate font-medium text-fg underline-offset-2 hover:underline">
                           {r.name}
                         </Link>
                       </td>
@@ -214,7 +222,7 @@ export function Overview() {
               {s.top.map((l) => (
                 <li key={l.id}>
                   <Link
-                    href={`/leads?search=${l.searchId}`}
+                    href={`/resultados?search=${l.searchId}`}
                     className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-2"
                   >
                     <span className="min-w-0 flex-1">
@@ -252,10 +260,10 @@ function OverviewSkeleton() {
         ))}
       </div>
       <div className="mt-5 grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
-        <Card className="xl:col-span-2" title="Leads extraídos" description="Últimos 14 días">
+        <Card className="xl:col-span-2" title="Negocios extraídos" description="Últimos 14 días">
           <ChartSkeleton height={220} />
         </Card>
-        <Card title="Datos de contacto" description="Qué parte de tus leads puedes contactar">
+        <Card title="Datos de contacto" description="Qué parte de lo encontrado puedes contactar">
           <div className="flex flex-col gap-6 pt-1">
             {Array.from({ length: 3 }, (_, i) => (
               <div key={i} className="flex flex-col gap-2">

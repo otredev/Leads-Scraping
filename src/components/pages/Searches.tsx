@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Square, Trash2 } from "lucide-react";
-import { useData } from "../data/DataProvider";
+import { RotateCw, Square, Trash2 } from "lucide-react";
+import { postJson, useData } from "../data/DataProvider";
+import type { Search } from "@/core/search";
 import { NewSearchForm } from "../NewSearchForm";
 import { Card, EmptyState, Loading, PageHeader, ProgressBar, RowsSkeleton, Skeleton, StatusBadge, timeAgo } from "../ui";
 
@@ -16,8 +17,14 @@ export function Searches() {
     await refreshSearches();
   }
 
+  async function rerun(id: string) {
+    const s = await postJson<Search>(`/api/searches/${id}/rerun`, {});
+    addSearch(s);
+    router.push(`/resultados?search=${s.id}`);
+  }
+
   async function remove(id: string, name: string, count: number) {
-    if (!window.confirm(`¿Eliminar "${name}" y sus ${count} leads?`)) return;
+    if (!window.confirm(`¿Eliminar "${name}" y sus ${count} resultados? Los leads que hayas guardado no se borran.`)) return;
     await fetch(`/api/searches/${id}`, { method: "DELETE" });
     await refreshSearches();
   }
@@ -35,7 +42,7 @@ export function Searches() {
               modules={modules}
               onCreated={(s) => {
                 addSearch(s);
-                router.push(`/leads?search=${s.id}`);
+                router.push(`/resultados?search=${s.id}`);
               }}
             />
           ) : (
@@ -56,7 +63,11 @@ export function Searches() {
           )}
         </Card>
 
-        <Card title="Historial" description={loading ? "Cargando…" : `${searches.length} búsquedas`} bodyClassName="">
+        <Card
+          title="Historial"
+          description={loading ? "Cargando…" : `${searches.length} búsquedas guardadas · puedes repetir cualquiera`}
+          bodyClassName=""
+        >
           {loading ? (
             <Loading label="Cargando búsquedas…">
               <div className="border-t border-line">
@@ -75,7 +86,7 @@ export function Searches() {
                     <th className="px-5 py-2.5 font-medium">Búsqueda</th>
                     <th className="px-3 py-2.5 font-medium">Proveedor</th>
                     <th className="px-3 py-2.5 font-medium">Estado</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Leads</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Resultados</th>
                     <th className="px-3 py-2.5 text-right font-medium">Fecha</th>
                     <th className="px-5 py-2.5">
                       <span className="sr-only">Acciones</span>
@@ -88,7 +99,7 @@ export function Searches() {
                     return (
                       <tr key={s.id} className="border-b border-line align-top last:border-0 hover:bg-surface-2">
                         <td className="max-w-[320px] px-5 py-3.5">
-                          <Link href={`/leads?search=${s.id}`} className="block truncate font-medium text-fg underline-offset-2 hover:underline" title={s.params.queries.join("\n")}>
+                          <Link href={`/resultados?search=${s.id}`} className="block truncate font-medium text-fg underline-offset-2 hover:underline" title={s.params.queries.join("\n")}>
                             {s.name}
                           </Link>
                           {active && (
@@ -105,13 +116,22 @@ export function Searches() {
                         </td>
                         <td className="px-3 py-3.5 text-right tabular-nums">{s.leadCount}</td>
                         <td className="whitespace-nowrap px-3 py-3.5 text-right text-muted">{timeAgo(s.createdAt)}</td>
-                        <td className="px-5 py-2.5 text-right">
+                        <td className="whitespace-nowrap px-5 py-2.5 text-right">
                           {active ? (
                             <button className="btn btn-ghost btn-sm" onClick={() => cancel(s.id)}>
                               <Square className="size-3.5" aria-hidden />
                               Cancelar
                             </button>
                           ) : (
+                            <>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => void rerun(s.id)}
+                              title="Repetir esta búsqueda con los mismos parámetros"
+                              aria-label={`Repetir ${s.name}`}
+                            >
+                              <RotateCw className="size-4" aria-hidden />
+                            </button>
                             <button
                               className="btn btn-ghost btn-sm text-muted hover:text-danger"
                               onClick={() => remove(s.id, s.name, s.leadCount)}
@@ -119,6 +139,7 @@ export function Searches() {
                             >
                               <Trash2 className="size-4" aria-hidden />
                             </button>
+                            </>
                           )}
                         </td>
                       </tr>

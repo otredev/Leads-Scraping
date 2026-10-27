@@ -34,7 +34,10 @@ export interface Lead {
   name: string;
   category?: string;
   emails: string[];
+  /** Teléfono en formato internacional legible (+34 963 00 00 00). */
   phone?: string;
+  /** Teléfono en formato E.164 (+34963000000), listo para WhatsApp/llamadas. */
+  phoneE164?: string;
   website?: string;
   address?: string;
   rating?: number;
@@ -61,6 +64,11 @@ export type LeadInput = Omit<
   extra?: Record<string, unknown>;
 };
 
+/** Garantiza los campos obligatorios de tipo lista/objeto (por si el almacenamiento los omite). */
+export function normalizeLead<T extends Lead>(lead: T): T {
+  return { ...lead, emails: lead.emails ?? [], reviews: lead.reviews ?? [], extra: lead.extra ?? {} };
+}
+
 /** Quita duplicados (p. ej. el mismo negocio en dos búsquedas), conservando el más reciente. */
 export function dedupeLeads(leads: Lead[]): Lead[] {
   const byKey = new Map<string, Lead>();
@@ -76,4 +84,34 @@ export function dedupeLeads(leads: Lead[]): Lead[] {
 export function leadDedupeKey(lead: Pick<Lead, "externalId" | "name" | "address">): string {
   if (lead.externalId) return `id:${lead.externalId}`;
   return `na:${lead.name.trim().toLowerCase()}|${(lead.address ?? "").trim().toLowerCase()}`;
+}
+
+/**
+ * Lead guardado en tu CRM (separado de los resultados de búsqueda).
+ * Se identifica por `key` (la misma clave de deduplicación), así que guardar el
+ * mismo negocio desde otra búsqueda actualiza sus datos en lugar de duplicarlo.
+ */
+export interface SavedLead extends Lead {
+  key: string;
+  /** Búsquedas de las que se ha guardado. */
+  searchIds: string[];
+  savedAt: string;
+  updatedAt: string;
+  /** En la papelera desde esta fecha. */
+  deletedAt?: string;
+  /** Se eliminará definitivamente en esta fecha. */
+  purgeAt?: string;
+}
+
+/** Campos de datos que se refrescan al volver a guardar un lead (no los del CRM). */
+export const LEAD_DATA_FIELDS = [
+  "sourceId", "providerId", "externalId", "name", "category", "emails", "phone", "phoneE164",
+  "website", "address", "rating", "reviewCount", "reviews", "openingHours", "latitude",
+  "longitude", "url", "extra", "collectedAt",
+] as const satisfies readonly (keyof Lead)[];
+
+export function pickLeadData(lead: Lead): Partial<Lead> {
+  const out: Record<string, unknown> = {};
+  for (const k of LEAD_DATA_FIELDS) if (lead[k] !== undefined) out[k] = lead[k];
+  return out as Partial<Lead>;
 }

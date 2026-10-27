@@ -18,7 +18,7 @@ const g = globalThis as unknown as { __leadStore?: LeadStore };
 
 /** Instancia única del almacenamiento (sobrevive a recargas en desarrollo). */
 export function getStorageModule() {
-  const wanted = process.env.STORAGE;
+  const wanted = process.env.STORAGE || (process.env.MONGODB_URI ? "mongodb" : undefined);
   return (wanted && storages.find((s) => s.id === wanted)) || storages[0];
 }
 
@@ -27,4 +27,9 @@ export function getStore(): LeadStore {
   return g.__leadStore;
 }
 
-export { providers, sources, exporters };
+/** Crea una instancia de otro almacenamiento (p. ej. para migrar datos). */
+export function createStorage(id: string): LeadStore | undefined {
+  return storages.find((s) => s.id === id)?.create();
+}
+
+export { providers, sources, exporters, storages };

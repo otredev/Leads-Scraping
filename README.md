@@ -6,7 +6,8 @@ Todo es modular: fuentes, proveedores de scraping, formatos de exportación y al
 - **Datos por lead:** nombre, categoría, email(s), teléfono, web, dirección, valoración, nº de reseñas, reseñas, horario, coordenadas y enlace a la ficha.
 - **Proveedor actual:** [gosom/google-maps-scraper](https://github.com/gosom/google-maps-scraper) (open source y gratuito).
 - **Proveedor demo:** genera datos ficticios para probar la app sin levantar nada.
-- **Coste:** 0 €. No hay APIs de pago, cuentas ni tarjetas.
+- **Base de datos:** MongoDB (Atlas gratuito o local), o ficheros JSON locales si no configuras ninguna.
+- **Coste:** 0 €. No hay APIs de pago ni tarjetas.
 
 ---
 
@@ -28,16 +29,43 @@ docker compose up -d            # levanta gosom en http://localhost:8080
 npm run dev                     # abre http://localhost:3000
 ```
 
+### Conectar MongoDB Atlas
+
+1. En `.env.local`, pon tu cadena de conexión sustituyendo `<db_password>` por la contraseña del usuario de base de datos:
+   ```
+   MONGODB_URI=mongodb+srv://usuario:CONTRASEÑA@cluster.xxxxx.mongodb.net/
+   ```
+   Si la contraseña tiene caracteres especiales (`@ : / ? # [ ] %`), codifícalos (por ejemplo `@` → `%40`).
+2. En Atlas → **Network Access**, añade tu IP (o `0.0.0.0/0` para permitir cualquiera).
+3. Reinicia `npm run dev`. En **Ajustes** verás "MongoDB · Conectada". Si tenías datos locales en `data/`, pulsa **Importar datos locales**.
+
+Las colecciones (`searches`, `results`, `leads`) y sus índices se crean solos en la base `leads_scraping` (cámbiala con `MONGODB_DB`).
+
+### Variables de entorno
+
+| Variable | Para qué | Por defecto |
+|---|---|---|
+| `GOSOM_URL` | REST API de gosom | `http://localhost:8080` |
+| `MONGODB_URI` | Conexión a MongoDB. Si existe, se usa MongoDB | — |
+| `MONGODB_DB` | Nombre de la base de datos | `leads_scraping` |
+| `STORAGE` | Forzar almacenamiento: `mongodb` o `json-file` | MongoDB si hay `MONGODB_URI` |
+| `DATA_DIR` | Carpeta del almacenamiento `json-file` | `./data` |
+| `DEFAULT_COUNTRY` | País para teléfonos sin prefijo (ISO, 2 letras) | `ES` |
+| `TRASH_DAYS` | Días que un lead pasa en la papelera | `30` |
+
 En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a gosom. Si está en rojo, gosom no está levantado.
 
 **Tiempos:** gosom abre un navegador real y recorre Google Maps, así que cada búsqueda tarda **al menos 3 minutos**. Activar "Buscar emails" lo hace más lento porque visita la web de cada negocio. Puedes cerrar la pestaña: la búsqueda sigue, y si reinicias la app se reanuda sola.
 
 ## Interfaz
 
-- **Panel:** métricas (leads, % con email y teléfono, valoración media), leads extraídos por día, cobertura de contacto, categorías, valoraciones, búsquedas recientes y mejor valorados.
-- **Búsquedas:** formulario de nueva búsqueda e historial con progreso en vivo.
-- **Leads:** tabla con filtros, orden, columnas configurables, detalle por fila y exportación.
-- **Módulos:** proveedores, fuentes, formatos y almacenamiento registrados, con su estado.
+- **Panel:** negocios encontrados, leads guardados, % con email y teléfono, extraídos por día, cobertura de contacto, categorías, valoraciones, búsquedas recientes y mejor valorados.
+- **Búsquedas:** formulario de nueva búsqueda e historial guardado, con progreso en vivo y botón para **repetir** cualquier búsqueda.
+- **Resultados:** lo que devuelven las búsquedas. Filtra, ordena, exporta y **guarda** una fila (icono de marcador) o **todos los visibles** del filtro actual.
+- **Leads:** tus leads guardados (el CRM). Separados de los resultados: borrar una búsqueda no borra tus leads. Guardar otra vez el mismo negocio actualiza sus datos.
+- **Papelera:** los leads borrados se pueden restaurar; se eliminan solos a los 30 días (`TRASH_DAYS`).
+- **Ajustes:** estado de la base de datos, **copia de seguridad** (descargar / restaurar JSON), importación de datos locales y módulos conectados.
+- **Teléfonos normalizados:** se guardan en formato internacional (`+34 963 00 00 00`) y E.164 (`+34963000000`) para WhatsApp. El país se elige en cada búsqueda.
 - **Tema claro, oscuro o del sistema:** monocromo (blanco, grises y negro). Selector en la barra lateral (en móvil, botón de la cabecera). Se recuerda entre visitas.
 - **Skeletons de carga:** cada sección muestra su silueta mientras llegan los datos (`Skeleton`, `StatCardSkeleton`, `ChartSkeleton`, `RowsSkeleton`… en `src/components/ui`).
 
@@ -48,11 +76,12 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 ## Uso
 
 1. Escribe una búsqueda por línea, como en Google Maps (`dentistas en Valencia`).
-2. En "Más opciones" ajusta idioma, límite de leads, profundidad, tiempo máximo, emails y reseñas ampliadas.
-3. Al terminar, filtra (texto, categoría, valoración, nº de reseñas, con email/teléfono/web), ordena por cualquier columna haciendo clic en su cabecera y despliega una fila para ver el horario y las reseñas.
-4. **Exportar** descarga exactamente lo que ves filtrado y en el mismo orden: CSV (con coma, o con punto y coma para Excel en español) o JSON.
+2. En "Opciones avanzadas" ajusta idioma, país de los teléfonos, límite de resultados, profundidad, tiempo máximo, emails y reseñas ampliadas.
+3. Al terminar, en **Resultados** filtra (texto, categoría, valoración, nº de reseñas, con email/teléfono/web), ordena por cualquier columna haciendo clic en su cabecera y despliega una fila para ver el horario y las reseñas.
+4. Guarda los que te interesen (uno a uno o "Guardar N visibles") y trabájalos en **Leads**.
+5. **Exportar** descarga exactamente lo que ves filtrado y en el mismo orden: CSV (con coma, o con punto y coma para Excel en español) o JSON. Funciona igual en Resultados y en Leads.
 
-Los datos se guardan en `./data` (búsquedas en `searches.json` y los leads de cada búsqueda en `leads/<id>.json`).
+**Copias de seguridad:** en Ajustes → "Descargar copia" obtienes un JSON con todo (búsquedas, resultados y leads, incluida la papelera). "Restaurar desde archivo" solo añade lo que falte, nunca sobrescribe. El formato es el mismo con MongoDB o con ficheros locales, así que también sirve para migrar entre ellos.
 
 > **Email:** Google Maps no publica emails. Solo aparecen si gosom los encuentra en la web del negocio.
 
@@ -71,20 +100,22 @@ src/
 │   ├── storage.ts           Interfaz LeadStore
 │   ├── options.ts           Esquema declarativo de opciones → formularios automáticos
 │   ├── stats.ts             Métricas del panel
+│   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
 │   ├── index.ts             ⭐ REGISTRO: el único sitio donde se conectan los módulos
 │   ├── sources/             google-maps
 │   ├── providers/           gosom/, demo/
 │   ├── exporters/           csv, json
-│   └── storage/             json-file
+│   └── storage/             json-file, mongodb
 ├── server/
 │   ├── registry.ts          Búsqueda de módulos e instancia del almacenamiento
+│   ├── crm.ts               Guardar resultados como leads, papelera
 │   └── runner.ts            Ejecuta búsquedas en segundo plano, guarda, cancela y reanuda
-├── app/api/                 REST: modules, searches, leads, export, stats
+├── app/api/                 REST: modules, searches, results, leads, export, stats, backup
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
-│   ├── pages/               Panel, Búsquedas, Leads, Módulos
+│   ├── pages/               Panel, Búsquedas, Resultados, Leads, Papelera, Ajustes
 │   ├── charts/              Gráficos ligeros en HTML/CSS (sin librerías)
 │   ├── ui/                  Tarjetas, métricas, insignias de estado…
 │   └── data/                Estado compartido (módulos y búsquedas)
@@ -162,13 +193,13 @@ Crea `src/modules/exporters/xlsx.ts` con `defineExporter({ id, label, extension,
 
 ### Otro almacenamiento (SQLite, Postgres, Supabase…)
 
-Implementa `LeadStore` (`src/core/storage.ts`) en `src/modules/storage/`, regístralo en `storages` y selecciónalo con `STORAGE=<id>` en `.env.local`.
+Implementa `LeadStore` (`src/core/storage.ts`) en `src/modules/storage/`, regístralo en `storages` y selecciónalo con `STORAGE=<id>` en `.env.local`. Hay dos implementaciones de referencia: `mongodb.ts` y `json-file.ts`. La copia de seguridad y la importación funcionan entre cualquiera de ellas.
 
 ## Despliegue futuro
 
 La app está pensada para uso local. Para desplegarla habría que cambiar dos piezas, sin tocar los proveedores:
 
-- **Almacenamiento:** en un hosting serverless (Vercel) el disco no persiste. Habría que cambiar `json-file` por una base de datos (por ejemplo Postgres en Neon o Supabase, ambos con plan gratuito).
+- **Almacenamiento:** ya está resuelto con MongoDB Atlas (en serverless el disco no persiste, así que `json-file` no sirve ahí).
 - **Ejecución en segundo plano:** el `runner` vive en el proceso de Next.js, lo que funciona en un servidor tradicional (VPS, Railway, Fly.io, Docker) pero no en serverless. En ese caso habría que moverlo a una cola o worker.
 - **gosom** necesita una máquina con Docker: el mismo VPS o un servicio aparte.
 
@@ -177,10 +208,44 @@ La app está pensada para uso local. Para desplegarla habría que cambiar dos pi
 Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo con moderación, para prospección propia, y respeta la normativa de protección de datos (RGPD) al contactar con los leads.
 
 
-## Pendientes: 
-- Crear MCP para manejarlo desde claude
-- En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
+# Pendientes: 
+
+## Fase 1 · Base de datos
 - Conectarlo a una base de datos de mongo db y poder guardar un fila o todos los datos visibles de un filtro. 
+- Historial de busquedas guardadas
+- Normalizar teléfonos: pasarlos a formato internacional (con libphonenumber) para que WhatsApp funcione siempre.
+- Papelera para recuperar leads borrados. Que se eliminen por tiempo
+- Copia de seguridad / exportar el CRM completo.
+
+## Fase 2 · CRM: organizar leads
 - Opcion de recategorizar ejemplo (Desinteresados, Leads, Interesados, Clientes) En una pagina donde pueda cambiar de vistas, a listas, columnas como tablero como trello.
 - Poder agregar notas, a cada lead.
 - Opcion de crear y agregar tags a leads.
+- Opcion de cambiar colores a leads. 
+- Tags automaticos: marcar automáticamente “sin web”, “sin contacto” o “valoración baja”.
+- Opcion de establecer filtros predeterminados, que al restablecer queden fijos.
+- Acciones masivas: seleccionar varios leads y cambiar etapa, tag o borrar a la vez.
+- Puntuación de leads según datos de contacto, valoración y reseñas.
+- Poder personalizar el orden de las columnas de las tablas de lead.
+- Lista de "no contactar" para cumplir RGPD. De personas que piden no volver a contactar
+
+## Fase 3 · Captura de datos
+- En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
+- Importar CSV
+- Volver a extraer los datos de un lead guardado para refrescarlo.
+
+## Fase 4 · Seguimiento y contacto
+- Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
+- Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
+- Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
+- Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
+- Embudo de conversión por etapa en el panel.
+
+## Fase 5 · Integración con Claude
+- Crear MCP para manejarlo desde claude
+- Copiar datos de lead para crear con MCP de claude la pag en otrelink
+
+### Futuro:
+Login y multiusuario
+Chatbot
+Busquedas automaticas

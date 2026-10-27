@@ -215,3 +215,20 @@ export function ListSkeleton({ rows = 5 }: { rows?: number }) {
     </div>
   );
 }
+
+/** Aviso breve tras una acción (p. ej. "6 leads guardados"). */
+export function Notice({ children, onClose, tone = "info" }: { children: ReactNode; onClose(): void; tone?: "info" | "error" }) {
+  return (
+    <div
+      role="status"
+      className={`mb-5 flex items-start justify-between gap-3 rounded-card border px-4 py-3 text-sm ${
+        tone === "error" ? "border-danger/30 bg-danger-soft text-danger" : "border-line bg-surface text-fg shadow-card"
+      }`}
+    >
+      <div className="min-w-0">{children}</div>
+      <button className="text-muted hover:text-fg" onClick={onClose} aria-label="Cerrar aviso">
+        ×
+      </button>
+    </div>
+  );
+}

@@ -1,11 +1,5 @@
-import { Suspense } from "react";
-import { Leads } from "@/components/pages/Leads";
+import { SavedLeads } from "@/components/pages/SavedLeads";
 
 export default function Page() {
-  // useSearchParams (?search=) necesita un límite de Suspense.
-  return (
-    <Suspense>
-      <Leads />
-    </Suspense>
-  );
+  return <SavedLeads />;
 }

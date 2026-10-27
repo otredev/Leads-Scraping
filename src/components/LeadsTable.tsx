@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, AtSign, Columns3, Download, ExternalLink, Globe, Phone, Search, X } from "lucide-react";
-import type { Lead } from "@/core/lead";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, AtSign, Bookmark, BookmarkPlus, Columns3, Download, ExternalLink, Globe, Phone, Search, Trash2, X } from "lucide-react";
+import { leadDedupeKey, type Lead } from "@/core/lead";
 import { LEAD_FIELDS, type LeadField } from "@/core/fields";
 import { defaultOptions, type OptionValues } from "@/core/options";
 import { queryLeads, toSearchParams, type LeadFilters, type LeadSort } from "@/core/query";
@@ -14,9 +14,17 @@ const PAGE_SIZE = 50;
 
 interface Props {
   leads: Lead[];
+  /** Búsqueda seleccionada ("all" = todas). Solo para resultados. */
   searchId: string;
   exporters: ExporterInfo[];
   loading: boolean;
+  /** "results": resultados de búsqueda (se pueden guardar). "saved": leads guardados. */
+  mode?: "results" | "saved";
+  /** Claves de los leads ya guardados (modo resultados). */
+  savedKeys?: Set<string>;
+  onSave?(ids: string[]): Promise<void>;
+  onTrash?(ids: string[]): Promise<void>;
+  empty?: ReactNode;
 }
 
 function hostname(url: string) {
@@ -47,7 +55,7 @@ function Cell({ field, lead }: { field: LeadField; lead: Lead }) {
       );
     case "phone":
       return lead.phone ? (
-        <a href={`tel:${lead.phone.replace(/\s/g, "")}`} className="whitespace-nowrap text-fg-2 hover:text-fg hover:underline">
+        <a href={`tel:${lead.phoneE164 ?? lead.phone.replace(/\s/g, "")}`} className="whitespace-nowrap text-fg-2 hover:text-fg hover:underline">
           {lead.phone}
         </a>
       ) : (
@@ -203,7 +211,18 @@ function TableSkeleton() {
   );
 }
 
-export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
+export function LeadsTable({
+  leads,
+  searchId,
+  exporters,
+  loading,
+  mode = "results",
+  savedKeys,
+  onSave,
+  onTrash,
+  empty,
+}: Props) {
+  const [busy, setBusy] = useState<string>();
   const [filters, setFilters] = useState<LeadFilters>({});
   const [sort, setSort] = useState<LeadSort | undefined>({ field: "rating", dir: "desc" });
   const [page, setPage] = useState(0);
@@ -225,6 +244,18 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
 
   const exporter = exporters.find((e) => e.id === exporterId) ?? exporters[0];
   const exporterValues = exporter ? { ...defaultOptions(exporter.options), ...exportOpts[exporter.id] } : {};
+  const isSaved = (l: Lead) => Boolean(savedKeys?.has(leadDedupeKey(l)));
+  const unsavedVisible = mode === "results" && savedKeys ? rows.filter((l) => !isSaved(l)) : [];
+
+  async function run(key: string, fn: () => Promise<void>) {
+    setBusy(key);
+    try {
+      await fn();
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
   const activeFilters = Object.values(filters).some((v) => v !== undefined && v !== "" && v !== false);
 
   function update(patch: Partial<LeadFilters>) {
@@ -241,7 +272,8 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
   function exportHref(allColumns: boolean) {
     const p = toSearchParams(filters, sort);
     p.set("format", exporter?.id ?? "csv");
-    if (searchId !== "all") p.set("searchId", searchId);
+    if (mode === "saved") p.set("scope", "saved");
+    else if (searchId !== "all") p.set("searchId", searchId);
     if (!allColumns) p.set("fields", visible.join(","));
     for (const [k, v] of Object.entries(exporterValues)) p.set(k, String(v));
     return `/api/export?${p.toString()}`;
@@ -309,10 +341,25 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
             </button>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2 [&_.btn]:whitespace-nowrap">
             <span className="mr-1 text-[13px] text-muted tabular-nums">
-              {loading ? "" : rows.length === leads.length ? `${leads.length} leads` : `${rows.length} de ${leads.length}`}
+              {loading ? "" : rows.length === leads.length ? `${leads.length} ${mode === "saved" ? "leads" : "resultados"}` : `${rows.length} de ${leads.length}`}
             </span>
+            {mode === "results" && onSave && (
+              <button
+                className="btn btn-sm"
+                disabled={!unsavedVisible.length || busy === "save-all"}
+                onClick={() => run("save-all", () => onSave(unsavedVisible.map((l) => l.id)))}
+                title="Guarda en Leads todos los resultados que coinciden con los filtros (todas las páginas)"
+              >
+                <BookmarkPlus className="size-4" aria-hidden />
+                {busy === "save-all"
+                  ? "Guardando…"
+                  : unsavedVisible.length
+                    ? `Guardar ${unsavedVisible.length} ${unsavedVisible.length === 1 ? "visible" : "visibles"}`
+                    : "Todo guardado"}
+              </button>
+            )}
             <div className="relative">
               <button
                 className="btn btn-sm"
@@ -392,9 +439,11 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
         <TableSkeleton />
       ) : leads.length === 0 ? (
         <div className="p-5">
-          <EmptyState title="Todavía no hay leads aquí">
-            Lanza una búsqueda desde la sección Búsquedas. Con gosom, los resultados tardan unos minutos en llegar.
-          </EmptyState>
+          {empty ?? (
+            <EmptyState title="Todavía no hay resultados aquí">
+              Lanza una búsqueda desde la sección Búsquedas. Con gosom, los resultados tardan unos minutos en llegar.
+            </EmptyState>
+          )}
         </div>
       ) : rows.length === 0 ? (
         <div className="p-5">
@@ -412,7 +461,12 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line bg-surface-2">
-                <th scope="col" className="w-px py-0 pr-0 pl-4">
+                {(onSave || onTrash) && (
+                  <th scope="col" className="w-px py-0 pr-0 pl-3">
+                    <span className="sr-only">Acciones</span>
+                  </th>
+                )}
+                <th scope="col" className={`w-px py-0 pr-0 ${onSave || onTrash ? "pl-1" : "pl-4"}`}>
                   <span className="sr-only">Contacto</span>
                 </th>
                 {columns.map((f) => {
@@ -452,7 +506,45 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
                         setExpanded(open ? undefined : lead.id);
                       }}
                     >
-                      <td className="py-3 pr-0 pl-4 align-top">
+                      {(onSave || onTrash) && (
+                      <td className="py-2 pr-0 pl-3 align-top">
+                        {mode === "results" && onSave ? (
+                          isSaved(lead) ? (
+                            <span className="inline-flex size-8 items-center justify-center text-fg" title="Ya está en Leads">
+                              <Bookmark className="size-4" fill="currentColor" aria-hidden />
+                              <span className="sr-only">Guardado</span>
+                            </span>
+                          ) : (
+                            <button
+                              className="btn btn-ghost btn-sm size-8 p-0"
+                              disabled={busy === lead.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void run(lead.id, () => onSave([lead.id]));
+                              }}
+                              title="Guardar en Leads"
+                              aria-label={`Guardar ${lead.name} en Leads`}
+                            >
+                              <Bookmark className="size-4" aria-hidden />
+                            </button>
+                          )
+                        ) : mode === "saved" && onTrash ? (
+                          <button
+                            className="btn btn-ghost btn-sm size-8 p-0 text-muted hover:text-danger"
+                            disabled={busy === lead.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void run(lead.id, () => onTrash([lead.id]));
+                            }}
+                            title="Mover a la papelera"
+                            aria-label={`Mover ${lead.name} a la papelera`}
+                          >
+                            <Trash2 className="size-4" aria-hidden />
+                          </button>
+                        ) : null}
+                      </td>
+                      )}
+                      <td className={`py-3 pr-0 align-top ${onSave || onTrash ? "pl-1" : "pl-4"}`}>
                         <Reach lead={lead} />
                       </td>
                       {columns.map((f) => (
@@ -481,7 +573,7 @@ export function LeadsTable({ leads, searchId, exporters, loading }: Props) {
                     </tr>
                     {open && (
                       <tr className="border-b border-line bg-primary-soft/60">
-                        <td colSpan={columns.length + 1} className="px-5 pt-1 pb-5 sm:pl-[92px]">
+                        <td colSpan={columns.length + 2} className={`px-5 pt-1 pb-5 ${onSave || onTrash ? "sm:pl-[132px]" : "sm:pl-[92px]"}`}>
                           <Detail lead={lead} />
                         </td>
                       </tr>

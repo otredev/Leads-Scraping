@@ -24,6 +24,7 @@ import json from "./exporters/json";
 
 // Almacenamiento
 import jsonFile from "./storage/json-file";
+import mongodb from "./storage/mongodb";
 
 export const sources: SourceDefinition[] = [googleMaps];
 
@@ -32,5 +33,8 @@ export const providers: LeadProvider[] = [gosom, demo];
 
 export const exporters: Exporter[] = [csv, json];
 
-/** Se elige con la variable de entorno STORAGE (por defecto el primero). */
-export const storages: StorageModule[] = [jsonFile];
+/**
+ * Se elige con la variable STORAGE. Si no se indica, se usa MongoDB cuando
+ * existe MONGODB_URI y, si no, ficheros JSON locales.
+ */
+export const storages: StorageModule[] = [jsonFile, mongodb];

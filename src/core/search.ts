@@ -6,6 +6,8 @@ export interface SearchParams {
   queries: string[];
   /** Código de idioma de 2 letras. */
   lang: string;
+  /** País (ISO de 2 letras) para interpretar teléfonos sin prefijo. */
+  country?: string;
   /** Máximo de leads a guardar (opcional). */
   limit?: number;
   /** Opciones propias del proveedor (ver `LeadProvider.options`). */
