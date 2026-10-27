@@ -6,6 +6,7 @@ import type { Lead, SavedLead } from "@/core/lead";
 import type { LeadField } from "@/core/fields";
 import { LABEL_COLORS, type CrmSettings, type LabelColor } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
+import { SOCIAL_NETWORKS, type Socials } from "@/core/socials";
 
 /* Piezas de presentación de un lead, compartidas por tabla, lista, tablero y ficha. */
 
@@ -125,6 +126,8 @@ export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; 
       ) : (
         nil
       );
+    case "socials":
+      return lead.socials && Object.keys(lead.socials).length ? <SocialLinks socials={lead.socials} compact /> : nil;
     case "website":
     case "url":
     case "pageUrl":
@@ -279,5 +282,40 @@ export function ColorPicker({
         </button>
       ))}
     </div>
+  );
+}
+
+const SOCIAL_SHORT: Record<string, string> = {
+  instagram: "IG",
+  facebook: "FB",
+  tiktok: "TT",
+  linkedin: "in",
+  x: "X",
+  youtube: "YT",
+  whatsapp: "WA",
+  telegram: "TG",
+  pinterest: "Pin",
+  threads: "Th",
+};
+
+/** Enlaces a redes sociales: abreviados en la tabla, con nombre en la ficha. */
+export function SocialLinks({ socials, compact }: { socials: Socials; compact?: boolean }) {
+  const list = SOCIAL_NETWORKS.filter((n) => socials[n.id]);
+  return (
+    <span className={`flex flex-wrap ${compact ? "gap-1" : "gap-1.5"}`}>
+      {list.map((n) => (
+        <a
+          key={n.id}
+          href={socials[n.id]}
+          target="_blank"
+          rel="noreferrer"
+          title={`${n.label}: ${socials[n.id]}`}
+          className={`badge border border-line text-fg-2 hover:border-line-strong hover:text-fg ${compact ? "px-1.5 text-[11px]" : ""}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {compact ? SOCIAL_SHORT[n.id] : n.label}
+        </a>
+      ))}
+    </span>
   );
 }

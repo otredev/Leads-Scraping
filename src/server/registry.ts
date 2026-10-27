@@ -1,5 +1,5 @@
 import "server-only";
-import { exporters, providers, sources, storages } from "@/modules";
+import { enrichers, exporters, providers, sources, storages } from "@/modules";
 import type { LeadStore } from "@/core/storage";
 
 export function getProvider(id: string) {
@@ -32,4 +32,8 @@ export function createStorage(id: string): LeadStore | undefined {
   return storages.find((s) => s.id === id)?.create();
 }
 
-export { providers, sources, exporters, storages };
+export function getEnricher(id: string) {
+  return enrichers.find((e) => e.id === id);
+}
+
+export { providers, sources, exporters, storages, enrichers };

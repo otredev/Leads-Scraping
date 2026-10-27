@@ -55,6 +55,7 @@ Las colecciones (`searches`, `results`, `leads`, `settings`) y sus índices se c
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Claves de las notificaciones push (opcional: si no están, se generan y guardan solas) | — |
 | `VAPID_SUBJECT` | Contacto para los servicios push (`mailto:` o `https:`) | `mailto:avisos@leads-scraping.example` |
 | `REMINDERS` | `off` desactiva los recordatorios en segundo plano | activados |
+| `ENRICH_ALLOW_LOCAL` | `1` permite que el enriquecedor visite direcciones locales (solo para pruebas) | — |
 | `MCP_TOKEN` | Token para el servidor MCP. Sin él, el MCP solo acepta conexiones desde este equipo | — |
 
 En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a gosom. Si está en rojo, gosom no está levantado.
@@ -101,6 +102,7 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 - **Plantillas** (Ajustes → Plantillas de mensaje): textos de WhatsApp o email con variables `{nombre}`, `{categoria}`, `{direccion}`, `{telefono}`, `{email}`, `{web}`, `{valoracion}`, `{resenas}` y `{etapa}`, con vista previa.
 - **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La fecha es opcional: puedes ponerla, cambiarla o quitarla después desde el menú de la tarea. La página **Tareas** las agrupa en vencidas, hoy, próximas y sin fecha, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y con **notificaciones push** (ver abajo), también con la app cerrada. Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
 - **Calendario**: las tareas por mes o por semana, con el color de la etapa de cada lead. Arrastra una tarea a otro día para cambiarla de fecha (conserva la hora), arrastra las "sin fecha" a un día para programarlas, y crea tareas directamente en un día eligiendo el lead.
+- **Completar redes y emails**: en Leads, selecciona leads → "Completar redes y emails" (o el botón de la ficha). La app visita la web de cada negocio (portada y hasta 3 páginas de contacto o aviso legal) y añade sus redes sociales (Instagram, Facebook, TikTok, LinkedIn, X, YouTube, WhatsApp, Telegram, Pinterest, Threads), emails y teléfono si no lo tenía. Nunca borra datos: solo añade. Hay una columna **Redes** y un filtro **Con redes**. Si personalizaste las columnas, activa "Redes" en el menú Columnas.
 - **Mapa**: vista de los leads filtrados sobre OpenStreetMap (Leaflet, gratis), coloreados por etapa. Útil para planificar visitas por zona. Los leads importados sin coordenadas no aparecen.
 - **Panel**: embudo de conversión por etapa (% contactados y % en la última etapa) y las tareas para hoy.
 
@@ -126,6 +128,7 @@ En **Ajustes → Claude (MCP)** tienes la dirección y los comandos listos para 
 |---|---|
 | `get_overview` | Métricas, embudo, etapas, etiquetas, plantillas y tareas pendientes |
 | `list_leads` / `get_lead` | Buscar leads guardados (mismos filtros que la app) y ver su ficha completa |
+| `enrich_leads` / `get_enrich_job` | Completar redes, emails y teléfono desde la web de cada negocio |
 | `update_lead` / `trash_leads` | Etapa, color, etiquetas, notas, "no contactar"; mover a la papelera |
 | `start_search` / `get_search` / `list_searches` | Lanzar búsquedas en Google Maps y seguir su progreso |
 | `list_results` / `save_results` | Ver lo encontrado y guardarlo en el CRM |
@@ -144,6 +147,20 @@ En la ficha de cada lead, **Página web → Copiar para Claude** copia un encarg
 ### Instalar como app (PWA)
 
 Leads Scraping se puede instalar con su propio icono y ventana: en Chrome o Edge, con el icono de instalar de la barra de direcciones (o en Ajustes → Instalar la app). Instalada, los avisos de tareas salen como notificaciones del sistema y, si el servidor no está encendido, muestra una pantalla de "sin conexión" en lugar de un error. En el móvil solo se puede instalar cuando la app esté desplegada con HTTPS.
+
+### Proveedores para completar datos
+
+La app tiene un tipo de módulo para esto, los **enriquecedores** (`src/modules/enrichers/`): reciben un lead guardado y devuelven lo que encuentran. Viene con uno gratuito y sin claves, **Web del negocio**. Otros que se pueden añadir como módulo (condiciones consultadas en octubre de 2026; revisa sus webs antes de decidir):
+
+| Proveedor | Qué aporta | Coste | Encaje |
+|---|---|---|---|
+| **Web del negocio** (incluido) | Redes, emails y teléfono de la propia web | Gratis, sin límites | Primera opción: cubre la mayoría de negocios con web |
+| **Apify** (actores "contact details") | Emails, teléfonos y redes rastreando la web | $5 gratis al mes; pago por resultado | Webs que bloquean visitas simples o hechas con JavaScript |
+| **Outscraper** (Emails & Contacts) | Emails y contactos por dominio | 500 registros gratis cada 30 días | Lotes grandes |
+| **Hunter.io** | Emails de personas por dominio (con verificación) | 50 créditos gratis al mes | Encontrar al responsable, no solo info@ |
+| **Google Places API** | Web, teléfono, horario y valoración oficiales | Cupos mensuales gratis por tipo de dato (desde marzo de 2025 ya no hay crédito de $200) | Refrescar datos de Google sin scraper; no da redes |
+
+Ninguna red social ofrece una API gratuita para buscar el perfil de un negocio por su nombre, así que lo más fiable es sacarlo de los enlaces de su propia web, que es lo que hace el enriquecedor incluido.
 
 ### Notificaciones push
 
@@ -175,6 +192,8 @@ src/
 │   ├── calendar.ts          Tareas: agrupación, Google Calendar e .ics
 │   ├── otrelink.ts          Brief para crear la página del negocio en Otrelink
 │   ├── notifier.ts          Interfaz de los canales de notificación
+│   ├── enricher.ts          Interfaz de los enriquecedores (completar datos)
+│   ├── socials.ts           Redes sociales reconocidas y normalización de perfiles
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -183,7 +202,8 @@ src/
 │   ├── providers/           gosom/, demo/
 │   ├── exporters/           csv, json
 │   ├── storage/             json-file, mongodb
-│   └── notifiers/           web-push
+│   ├── notifiers/           web-push
+│   └── enrichers/           website-contacts
 ├── server/
 │   ├── registry.ts          Búsqueda de módulos e instancia del almacenamiento
 │   ├── crm.ts               Guardar resultados como leads, papelera
@@ -191,8 +211,9 @@ src/
 │   ├── tasks.ts             Tareas por lead
 │   ├── notifications.ts     Instancia los canales y envía por todos
 │   ├── reminders.ts         Revisa cada minuto las tareas que vencen y avisa
+│   ├── enrich.ts            Trabajos de enriquecimiento en segundo plano
 │   └── mcp/                 Servidor MCP para Claude (herramientas y acceso)
-├── app/api/                 REST: modules, searches, results, leads, tasks, notifications, export, stats, backup, settings, mcp
+├── app/api/                 REST: modules, searches, results, leads, enrich, tasks, notifications, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
 │   ├── pages/               Panel, Búsquedas, Resultados, Leads, Tareas, Calendario, Papelera, Ajustes
@@ -279,6 +300,10 @@ Crea `src/modules/exporters/xlsx.ts` con `defineExporter({ id, label, extension,
 ### Otro almacenamiento (SQLite, Postgres, Supabase…)
 
 Implementa `LeadStore` (`src/core/storage.ts`) en `src/modules/storage/`, regístralo en `storages` y selecciónalo con `STORAGE=<id>` en `.env.local`. Hay dos implementaciones de referencia: `mongodb.ts` y `json-file.ts`. La copia de seguridad y la importación funcionan entre cualquiera de ellas.
+
+### Nuevo enriquecedor (Apify, Hunter, Outscraper…)
+
+Crea un módulo en `src/modules/enrichers/` con `defineEnricher` (`src/core/enricher.ts`): `canEnrich(lead)` dice si se puede intentar (p. ej. "tiene web"), y `enrich(lead)` devuelve `{ emails, socials, phone, website, extra, note }`. La app lo fusiona sin borrar nada, lo guarda en el lead y lo muestra en la tabla, la ficha y la exportación. Regístralo en `enrichers` (`src/modules/index.ts`) y aparecerá en Ajustes, en "Completar redes y emails" y en el MCP (`enrich_leads`). Si necesita una clave, léela de `.env.local` y devuélvela en `health()` para que Ajustes avise si falta.
 
 ### Otro canal de notificación (Telegram, email, Slack…)
 

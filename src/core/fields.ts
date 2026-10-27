@@ -2,6 +2,7 @@ import type { Lead, SavedLead } from "./lead";
 import type { CrmSettings, TableId } from "./crm";
 import { LABEL_COLORS } from "./crm";
 import { AUTO_TAGS, autoTags, leadScore } from "./score";
+import { SOCIAL_NETWORKS } from "./socials";
 
 /**
  * Catálogo de campos de un lead: define columnas de la tabla, ordenación y
@@ -62,6 +63,17 @@ export const LEAD_FIELDS: LeadField[] = [
   },
   { key: "website", label: "Web", kind: "url", value: (l) => l.website, format: (l) => text(l.website), defaultVisible: true },
   { key: "address", label: "Dirección", kind: "text", value: (l) => l.address, format: (l) => text(l.address), defaultVisible: true },
+  {
+    key: "socials",
+    label: "Redes",
+    kind: "list",
+    value: (l) => (l.socials ? Object.keys(l.socials).length || undefined : undefined),
+    format: (l) =>
+      SOCIAL_NETWORKS.filter((n) => l.socials?.[n.id])
+        .map((n) => `${n.label}: ${l.socials![n.id]}`)
+        .join(" | "),
+    defaultVisible: true,
+  },
   {
     key: "rating",
     label: "Valoración",

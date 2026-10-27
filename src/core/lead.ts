@@ -1,4 +1,5 @@
 import type { CrmFields } from "./crm";
+import type { Socials } from "./socials";
 
 /**
  * Modelo normalizado de un lead.
@@ -50,6 +51,10 @@ export interface Lead {
   longitude?: number;
   /** Enlace a la ficha original (p. ej. Google Maps). */
   url?: string;
+  /** Perfiles en redes sociales (los añaden los enriquecedores). */
+  socials?: Socials;
+  /** Última vez que se completaron datos con enriquecedores. */
+  enrichedAt?: string;
 
   /** Datos específicos del proveedor que aún no forman parte del modelo. */
   extra: Record<string, unknown>;
@@ -120,11 +125,15 @@ export interface SavedLead extends Lead, CrmFields {
 export const LEAD_DATA_FIELDS = [
   "sourceId", "providerId", "externalId", "name", "category", "emails", "phone", "phoneE164",
   "website", "address", "rating", "reviewCount", "reviews", "openingHours", "latitude",
-  "longitude", "url", "extra", "collectedAt",
+  "longitude", "url", "extra", "collectedAt", "socials", "enrichedAt",
 ] as const satisfies readonly (keyof Lead)[];
 
 export function pickLeadData(lead: Lead): Partial<Lead> {
   const out: Record<string, unknown> = {};
-  for (const k of LEAD_DATA_FIELDS) if (lead[k] !== undefined) out[k] = lead[k];
+  for (const k of LEAD_DATA_FIELDS) {
+    // Una fuente sin emails no borra los que ya se habían encontrado (p. ej. con un enriquecedor).
+    if (k === "emails" && lead.emails?.length === 0) continue;
+    if (lead[k] !== undefined) out[k] = lead[k];
+  }
   return out as Partial<Lead>;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Ban, Bookmark, Palette, RefreshCw, Tag as TagIcon, Trash2, X } from "lucide-react";
+import { Ban, Bookmark, Palette, RefreshCw, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { ColorDot, ColorPicker } from "./parts";
 import { MenuItem, Popover } from "./Popover";
@@ -45,6 +45,7 @@ export function BulkBar({
   onUpdate,
   onTrash,
   onRefresh,
+  onEnrich,
   onCreateTag,
 }: {
   view: LeadView;
@@ -53,6 +54,7 @@ export function BulkBar({
   onUpdate?(ids: string[], update: LeadUpdate): Promise<void>;
   onTrash?(ids: string[]): Promise<void>;
   onRefresh?(ids: string[]): Promise<void>;
+  onEnrich?(ids: string[]): Promise<void>;
   onCreateTag?(name: string): Promise<Tag>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -240,6 +242,16 @@ export function BulkBar({
           title={ids.length > 200 ? "Máximo 200 leads por actualización" : "Vuelve a extraer sus datos de Google Maps"}
         >
           <RefreshCw className="size-3.5" aria-hidden /> Actualizar datos
+        </button>
+      )}
+      {onEnrich && (
+        <button
+          className="btn btn-sm"
+          disabled={busy}
+          onClick={() => run(() => onEnrich(ids))}
+          title="Visita la web de cada lead y añade sus redes sociales, emails y teléfono"
+        >
+          <Sparkles className="size-3.5" aria-hidden /> Completar redes y emails
         </button>
       )}
       {onTrash && (

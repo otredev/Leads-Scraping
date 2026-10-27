@@ -11,6 +11,7 @@ import type { SourceDefinition, LeadProvider } from "@/core/provider";
 import type { Exporter } from "@/core/exporter";
 import type { StorageModule } from "@/core/storage";
 import type { NotifierModule } from "@/core/notifier";
+import type { Enricher } from "@/core/enricher";
 
 // Fuentes
 import googleMaps from "./sources/google-maps";
@@ -30,6 +31,9 @@ import mongodb from "./storage/mongodb";
 // Notificaciones
 import webPush from "./notifiers/web-push";
 
+// Enriquecedores
+import websiteContacts from "./enrichers/website-contacts";
+
 export const sources: SourceDefinition[] = [googleMaps];
 
 /** El primero es el que aparece seleccionado por defecto. */
@@ -45,3 +49,6 @@ export const storages: StorageModule[] = [jsonFile, mongodb];
 
 /** Canales de notificación: todos los registrados reciben los avisos de tareas. */
 export const notifiers: NotifierModule[] = [webPush];
+
+/** Enriquecedores: completan datos de leads guardados (redes, emails…) desde otras fuentes. */
+export const enrichers: Enricher[] = [websiteContacts];

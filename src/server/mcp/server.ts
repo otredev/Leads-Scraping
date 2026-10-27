@@ -10,7 +10,8 @@ import { taskBucket, googleCalendarLink, hasDue } from "@/core/calendar";
 import { mailtoLink, renderTemplate, whatsappLink } from "@/core/templates";
 import { otrelinkBrief, otrelinkPrompt } from "@/core/otrelink";
 import { createTag, saveResults, trashSaved, updateSaved } from "../crm";
-import { getProvider, getStore, providers } from "../registry";
+import { enrichers, getProvider, getStore, providers } from "../registry";
+import { getEnrichJob, startEnrichment, waitForJob } from "../enrich";
 import { startSearch } from "../runner";
 import { getStats } from "../stats";
 import { createTask, listTasks, updateTask } from "../tasks";
@@ -91,6 +92,7 @@ function summary(l: SavedLead, settings: CrmSettings) {
     score: leadScore(l),
     lastContactAt: l.lastContactAt,
     pageUrl: l.pageUrl,
+    socials: l.socials && Object.keys(l.socials).length ? l.socials : undefined,
     doNotContact: l.doNotContact ? true : undefined,
   };
 }
@@ -122,6 +124,7 @@ const filterShape = {
   hasPhone: z.boolean().optional(),
   hasWebsite: z.boolean().optional(),
   noWebsite: z.boolean().optional().describe("Solo negocios sin web"),
+  hasSocials: z.boolean().optional().describe("Solo con alguna red social"),
 };
 
 const sortShape = {
@@ -172,6 +175,7 @@ export function createMcpServer() {
         templates: settings.templates.map((t) => ({ id: t.id, name: t.name, channel: t.channel })),
         tasks: buckets,
         providers: providers.map((p) => ({ id: p.id, name: p.name, acceptsMapsUrls: Boolean(p.acceptsMapsUrls) })),
+        enrichers: enrichers.map((e) => ({ id: e.id, label: e.label, provides: e.provides, requirement: e.requirement })),
       };
     }),
   );
@@ -207,6 +211,7 @@ export function createMcpServer() {
         hasPhone: a.hasPhone as boolean | undefined,
         hasWebsite: a.hasWebsite as boolean | undefined,
         noWebsite: a.noWebsite as boolean | undefined,
+        hasSocials: a.hasSocials as boolean | undefined,
         stage: resolveStage(settings, a.stage as string | undefined),
         tag,
         color: a.color as string | undefined,
@@ -521,6 +526,39 @@ export function createMcpServer() {
       if (!lead) throw badRequest("Lead no encontrado");
       const brief = otrelinkBrief(lead);
       return { ...brief, existingPage: lead.pageUrl, instructions: otrelinkPrompt(brief, { leadsMcp: true }).split("\nDatos (JSON):")[0] };
+    }),
+  );
+
+  server.registerTool(
+    "enrich_leads",
+    {
+      title: "Completar redes y emails",
+      description:
+        "Completa datos de leads guardados con los enriquecedores (por defecto visita la web de cada negocio y añade redes sociales, emails y teléfono). No borra nada. Con 10 leads o menos espera al resultado; si son más, devuelve un jobId para consultar con get_enrich_job.",
+      inputSchema: {
+        ids: z.array(z.string()).min(1).max(2000),
+        enrichers: z.array(z.string()).optional().describe("Ids de enriquecedores (get_overview los lista); por defecto todos"),
+      },
+    },
+    run(async ({ ids, enrichers: which }: { ids: string[]; enrichers?: string[] }) => {
+      const job = await startEnrichment(ids, which);
+      if (job.total > 10) return { jobId: job.id, total: job.total, status: job.status };
+      return await waitForJob(job.id, 120_000);
+    }),
+  );
+
+  server.registerTool(
+    "get_enrich_job",
+    {
+      title: "Estado de un enriquecimiento",
+      description: "Progreso y resultados de enrich_leads.",
+      inputSchema: { jobId: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ jobId }: { jobId: string }) => {
+      const job = getEnrichJob(jobId);
+      if (!job) throw badRequest("Trabajo no encontrado (los terminados se olvidan pasada una hora)");
+      return job;
     }),
   );
 

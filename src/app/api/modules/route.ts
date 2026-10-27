@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { exporters, getStorageModule, getStore, providers, sources } from "@/server/registry";
+import { enrichers, exporters, getStorageModule, getStore, providers, sources } from "@/server/registry";
 import { defaultCountry } from "@/server/config";
 import { trashDays } from "@/server/crm";
 
@@ -23,6 +23,16 @@ export async function GET() {
     sources,
     providers: providerInfo,
     exporters: exporters.map(({ id, label, extension, options }) => ({ id, label, extension, options })),
+    enrichers: await Promise.all(
+      enrichers.map(async (e) => ({
+        id: e.id,
+        label: e.label,
+        description: e.description,
+        provides: e.provides,
+        requirement: e.requirement,
+        health: await e.health().catch((err: Error) => ({ ok: false, message: err.message })),
+      })),
+    ),
     storage: {
       id: getStorageModule().id,
       label: getStorageModule().label,

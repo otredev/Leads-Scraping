@@ -16,6 +16,8 @@ export interface LeadFilters {
   hasWebsite?: boolean;
   /** Solo negocios sin web (oportunidad para ofrecerles una). */
   noWebsite?: boolean;
+  /** Con al menos una red social. */
+  hasSocials?: boolean;
   minScore?: number;
   /** Etiqueta (manual o automática "auto:…"). */
   tag?: string;
@@ -54,6 +56,7 @@ export function filterLeads<T extends Lead>(leads: T[], f: LeadFilters, ctx: Que
     if (f.hasPhone && !l.phone) return false;
     if (f.hasWebsite && !l.website) return false;
     if (f.noWebsite && l.website) return false;
+    if (f.hasSocials && !Object.keys(l.socials ?? {}).length) return false;
     if (f.minScore !== undefined && leadScore(l) < f.minScore) return false;
     const crm = l as Partial<SavedLead>;
     if (f.tag) {
@@ -95,7 +98,7 @@ export function queryLeads<T extends Lead>(leads: T[], filters: LeadFilters, sor
 }
 
 const NUM_KEYS = ["minRating", "minReviews", "minScore"] as const;
-const BOOL_KEYS = ["hasEmail", "hasPhone", "hasWebsite", "noWebsite"] as const;
+const BOOL_KEYS = ["hasEmail", "hasPhone", "hasWebsite", "noWebsite", "hasSocials"] as const;
 const STR_KEYS = ["q", "category", "tag", "stage", "color"] as const;
 
 /** Serializa filtros y orden a parámetros de URL (para la exportación). */

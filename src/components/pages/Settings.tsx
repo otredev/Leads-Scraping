@@ -269,6 +269,30 @@ export function Settings() {
             </ul>
           </Card>
 
+          <Card title="Enriquecedores" description="Completan datos de leads guardados (redes, emails…) desde otras fuentes" bodyClassName="px-5 pb-5">
+            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {modules.enrichers.map((e) => (
+                <li key={e.id} className="flex flex-col gap-2 rounded-xl border border-line p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{e.label}</p>
+                      <p className="text-xs text-muted">
+                        <Code>{e.id}</Code>
+                        {e.requirement ? ` · ${e.requirement.toLowerCase()}` : ""}
+                      </p>
+                    </div>
+                    <span className={`badge ${e.health.ok ? "bg-success-soft text-success" : "bg-danger-soft text-danger"}`}>
+                      <span className={`size-1.5 rounded-full ${e.health.ok ? "bg-success" : "bg-danger"}`} aria-hidden />
+                      {e.health.ok ? "Disponible" : "No disponible"}
+                    </span>
+                  </div>
+                  <p className="text-[13.5px] text-fg-2">{e.description}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="hint mt-3">Úsalos desde Leads: selecciona leads → &ldquo;Completar redes y emails&rdquo;, o desde la ficha de cada lead.</p>
+          </Card>
+
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card title="Fuentes" description="De dónde salen los datos">
               <ul className="flex flex-col gap-3">

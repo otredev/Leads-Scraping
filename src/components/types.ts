@@ -24,6 +24,7 @@ export interface ModulesInfo {
   exporters: ExporterInfo[];
   storage: { id: string; label: string; health: HealthStatus; localDataAvailable: boolean };
   defaults: { country: string; lang: string; trashDays: number };
+  enrichers: { id: string; label: string; description: string; provides: string[]; requirement?: string; health: HealthStatus }[];
   /** Endpoint MCP para Claude y si exige token (MCP_TOKEN). */
   mcp: { path: string; token: boolean };
 }

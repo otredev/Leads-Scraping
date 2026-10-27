@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Columns3 as BoardIcon, FileUp, List, Map as MapIcon, Table2 } from "lucide-react";
+import { Columns3 as BoardIcon, FileUp, List, Map as MapIcon, Sparkles, Table2, X } from "lucide-react";
 import type { Search } from "@/core/search";
 import type { SavedLead } from "@/core/lead";
 import { applyLeadUpdate, type CrmSettings, type LeadUpdate, type Tag } from "@/core/crm";
@@ -17,6 +17,7 @@ import { MapView } from "../leads/MapView";
 import { LeadsTableView, NoMatches, TableSkeleton } from "../leads/Table";
 import { LeadsToolbar } from "../leads/Toolbar";
 import { useLeadView } from "../leads/useLeadView";
+import { describeEnrichResult, type EnrichJobView } from "../leads/enrich";
 import { EmptyState, Notice, PageHeader } from "../ui";
 
 type ViewMode = "table" | "list" | "board" | "map";
@@ -82,6 +83,31 @@ export function SavedLeads() {
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load, refreshesDone]);
+
+  const [job, setJob] = useState<EnrichJobView>();
+
+  // Sigue el trabajo de "completar datos" hasta que termina y entonces recarga la lista.
+  useEffect(() => {
+    if (!job || job.status !== "running") return;
+    const t = setTimeout(() => {
+      api<EnrichJobView>(`/api/enrich/${job.id}`)
+        .then((next) => {
+          setJob(next);
+          if (next.status !== "running") void load();
+        })
+        .catch(() => setJob({ ...job, status: "done" }));
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [job, load]);
+
+  async function enrich(ids: string[]) {
+    try {
+      setJob(await postJson<EnrichJobView>("/api/enrich", { ids }));
+      setNotice(undefined);
+    } catch (err) {
+      setNotice({ text: (err as Error).message, tone: "error" });
+    }
+  }
 
   async function refresh(ids: string[]) {
     try {
@@ -199,6 +225,7 @@ export function SavedLeads() {
           {notice.text}
         </Notice>
       )}
+      {job && <EnrichProgress job={job} onClose={() => setJob(undefined)} />}
       {settings && leads ? (
         <LeadsBody
           leads={leads}
@@ -209,6 +236,7 @@ export function SavedLeads() {
           onCreateTag={createTag}
           onChangeOne={(lead) => setLeads((list) => list?.map((l) => (l.id === lead.id ? lead : l)))}
           onRefresh={refresh}
+          onEnrich={enrich}
           onDncChange={() => void refreshSaved()}
         />
       ) : (
@@ -238,6 +266,7 @@ function LeadsBody({
   onChangeOne,
   onDncChange,
   onRefresh,
+  onEnrich,
 }: {
   leads: SavedLead[];
   settings: CrmSettings;
@@ -248,6 +277,7 @@ function LeadsBody({
   onChangeOne(lead: SavedLead): void;
   onDncChange(): void;
   onRefresh(ids: string[]): Promise<void>;
+  onEnrich(ids: string[]): Promise<void>;
 }) {
   const { modules, patchSettings } = useData();
   const view = useLeadView("saved", leads, settings);
@@ -311,6 +341,7 @@ function LeadsBody({
             }}
             onTrash={onTrash}
             onRefresh={onRefresh}
+            onEnrich={onEnrich}
             onCreateTag={onCreateTag}
           />
         )}
@@ -350,5 +381,66 @@ function LeadsBody({
         />
       )}
     </>
+  );
+}
+
+/** Progreso y resumen de "Completar redes y emails". */
+function EnrichProgress({ job, onClose }: { job: EnrichJobView; onClose(): void }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const running = job.status === "running";
+  const pct = job.total ? Math.round((job.done / job.total) * 100) : 100;
+  const skipped = job.results.filter((r) => r.status === "skipped").length;
+  return (
+    <div className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm" role="status" aria-live="polite">
+      <div className="flex flex-wrap items-center gap-3">
+        <Sparkles className={`size-4 ${running ? "animate-pulse" : ""}`} aria-hidden />
+        <p className="min-w-0 flex-1">
+          {running ? (
+            <>
+              Buscando redes y emails en sus webs: <strong>{job.done}</strong> de {job.total}
+              {job.updated > 0 && <span className="text-muted"> · {job.updated} con datos nuevos</span>}
+            </>
+          ) : (
+            <>
+              {job.status === "cancelled" ? "Cancelado. " : "Terminado. "}
+              <strong>{job.updated}</strong> de {job.total} {job.total === 1 ? "lead" : "leads"} con datos nuevos
+              {skipped > 0 && <span className="text-muted"> · {skipped} sin web</span>}
+            </>
+          )}
+        </p>
+        {job.results.length > 0 && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails}>
+            {showDetails ? "Ocultar detalle" : "Ver detalle"}
+          </button>
+        )}
+        {running ? (
+          <button className="btn btn-sm" onClick={() => void postJson(`/api/enrich/${job.id}`, {}, "DELETE").catch(() => undefined)}>
+            Cancelar
+          </button>
+        ) : (
+          <button className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Cerrar resumen">
+            <X className="size-4" aria-hidden />
+          </button>
+        )}
+      </div>
+      {running && (
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-primary-track" aria-hidden>
+          <div className="h-full rounded-full bg-chart transition-[width]" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      {showDetails && (
+        <ul className="mt-3 max-h-64 divide-y divide-line overflow-y-auto rounded-lg border border-line">
+          {job.results.map((r) => {
+            const d = describeEnrichResult(r);
+            return (
+              <li key={r.leadId} className="flex gap-3 px-3 py-1.5 text-[13px]">
+                <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                <span className={`truncate ${d.ok ? "text-fg-2" : "text-muted"}`}>{d.text}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

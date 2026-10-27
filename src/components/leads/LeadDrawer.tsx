@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Trash2, X } from "lucide-react";
+import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Share2, Sparkles, Trash2, X } from "lucide-react";
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
@@ -12,7 +12,8 @@ import { ContactPanel } from "./ContactPanel";
 import { PagePanel } from "./PagePanel";
 import { Skeleton } from "../ui";
 import { NewTagInput } from "./BulkBar";
-import { ColorDot, ColorPicker, DncBadge, HoursAndReviews, TagChip, hostname } from "./parts";
+import { ColorDot, ColorPicker, DncBadge, HoursAndReviews, SocialLinks, TagChip, hostname } from "./parts";
+import { describeEnrichResult, type EnrichJobView } from "./enrich";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -205,8 +206,21 @@ export function LeadDrawer({
                 </a>
               </li>
             )}
+            {lead.socials && Object.keys(lead.socials).length > 0 && (
+              <li className="flex items-start gap-2">
+                <Share2 className="mt-1 size-4 text-muted" aria-hidden />
+                <SocialLinks socials={lead.socials} />
+              </li>
+            )}
             {!lead.phone && !lead.emails.length && !lead.website && <li className="text-muted">Sin datos de contacto.</li>}
           </ul>
+          <EnrichButton
+            lead={lead}
+            onDone={(next) => {
+              setLead(next);
+              onChange(next);
+            }}
+          />
         </Section>
 
         <Section title={`Puntuación: ${score} de 100`}>
@@ -402,6 +416,41 @@ export function LeadDrawer({
           </div>
         </footer>
       </aside>
+    </div>
+  );
+}
+
+/** Completa redes y emails del lead con los enriquecedores (p. ej. visitando su web). */
+function EnrichButton({ lead, onDone }: { lead: SavedLead; onDone(lead: SavedLead): void }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ text: string; ok: boolean }>();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          className="btn btn-sm"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setResult(undefined);
+            try {
+              const job = await postJson<EnrichJobView>("/api/enrich", { ids: [lead.id], wait: true });
+              const r = job.results[0];
+              setResult(r ? describeEnrichResult(r) : { text: "Sin resultado", ok: false });
+              onDone(await api<SavedLead>(`/api/leads/${lead.id}`));
+            } catch (err) {
+              setResult({ text: (err as Error).message, ok: false });
+            } finally {
+              setBusy(false);
+            }
+          }}
+          title={lead.website ? "Visita su web y busca redes sociales, emails y teléfono" : "Necesita que el lead tenga web"}
+        >
+          <Sparkles className={`size-3.5 ${busy ? "animate-pulse" : ""}`} aria-hidden /> {busy ? "Buscando en su web…" : "Completar redes y emails"}
+        </button>
+        {lead.enrichedAt && !result && <span className="text-xs text-muted">Revisado el {new Date(lead.enrichedAt).toLocaleDateString("es")}</span>}
+      </div>
+      {result && <p className={`text-[13px] ${result.ok ? "text-fg-2" : "text-muted"}`}>{result.text}</p>}
     </div>
   );
 }

@@ -310,6 +310,7 @@ export function LeadsToolbar({
         <Toggle on={Boolean(f.hasEmail)} label="Con email" onChange={(v) => view.update({ hasEmail: v })} />
         <Toggle on={Boolean(f.hasPhone)} label="Con teléfono" onChange={(v) => view.update({ hasPhone: v })} />
         <Toggle on={Boolean(f.noWebsite)} label="Sin web" onChange={(v) => view.update({ noWebsite: v, hasWebsite: undefined })} />
+        <Toggle on={Boolean(f.hasSocials)} label="Con redes" onChange={(v) => view.update({ hasSocials: v || undefined })} />
         {!view.isDefault && (
           <button className="btn btn-ghost btn-sm" onClick={view.resetToDefaults} title="Vuelve a tus filtros predeterminados">
             <RotateCcw className="size-3.5" aria-hidden /> Restablecer
