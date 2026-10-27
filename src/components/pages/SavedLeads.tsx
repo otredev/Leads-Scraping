@@ -223,10 +223,14 @@ function LeadsBody({
           exporters={modules?.exporters ?? []}
           onColumnsChange={(columns) => {
             view.setColumns(columns);
-            void patchSettings({ table: "saved", prefs: { ...view.defaults, columns } });
+            void patchSettings({ table: "saved", prefs: view.layoutPrefs({ columns }) });
+          }}
+          onWidthsReset={() => {
+            view.setWidths({});
+            void patchSettings({ table: "saved", prefs: view.layoutPrefs({ widths: {} }) });
           }}
           onSaveDefaults={async () => {
-            await patchSettings({ table: "saved", prefs: { filters: view.filters, sort: view.sort, columns: view.columns } });
+            await patchSettings({ table: "saved", prefs: view.currentPrefs() });
           }}
         />
         {mode !== "board" && (
@@ -242,7 +246,10 @@ function LeadsBody({
           />
         )}
         {mode === "table" && (
-          <LeadsTableView view={view} loading={false} settings={settings} onTrash={onTrash} onOpen={(l) => setOpenId(l.id)} empty={empty} />
+          <LeadsTableView
+            view={view}
+            onWidthsChange={(widths) => void patchSettings({ table: "saved", prefs: view.layoutPrefs({ widths }) })}
+            loading={false} settings={settings} onTrash={onTrash} onOpen={(l) => setOpenId(l.id)} empty={empty} />
         )}
         {mode === "list" && (rows.length ? <ListView view={view} leads={rows} settings={settings} onOpen={(l) => setOpenId(l.id)} /> : <div className="p-5">{empty}</div>)}
         {mode === "board" &&

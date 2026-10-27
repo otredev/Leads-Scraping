@@ -149,6 +149,12 @@ export async function saveTablePrefs(table: TableId, raw: unknown) {
         ? { field: r.sort.field, dir: r.sort.dir === "desc" ? "desc" : "asc" }
         : undefined,
     columns: Array.isArray(r.columns) ? r.columns.map(String).slice(0, 50) : [],
+    widths: Object.fromEntries(
+      Object.entries(r.widths && typeof r.widths === "object" ? r.widths : {})
+        .filter(([k, v]) => k.length < 40 && typeof v === "number" && Number.isFinite(v))
+        .slice(0, 50)
+        .map(([k, v]) => [k, Math.round(Math.min(1000, Math.max(60, v as number)))]),
+    ),
   };
   const next: CrmSettings = { ...settings, tables: { ...settings.tables, [table]: prefs } };
   await store.saveSettings(next);

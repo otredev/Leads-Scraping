@@ -182,10 +182,14 @@ function ResultsBody({
         searchId={searchId}
         onColumnsChange={(columns) => {
           view.setColumns(columns);
-          void patchSettings({ table: "results", prefs: { ...view.defaults, columns } });
+          void patchSettings({ table: "results", prefs: view.layoutPrefs({ columns }) });
+        }}
+        onWidthsReset={() => {
+          view.setWidths({});
+          void patchSettings({ table: "results", prefs: view.layoutPrefs({ widths: {} }) });
         }}
         onSaveDefaults={async () => {
-          await patchSettings({ table: "results", prefs: { filters: view.filters, sort: view.sort, columns: view.columns } });
+          await patchSettings({ table: "results", prefs: view.currentPrefs() });
         }}
         extra={
           <button
@@ -209,6 +213,7 @@ function ResultsBody({
       <BulkBar view={view} settings={settings} onSave={async (ids) => onSave(ids)} />
       <LeadsTableView
         view={view}
+        onWidthsChange={(widths) => void patchSettings({ table: "results", prefs: view.layoutPrefs({ widths }) })}
         loading={loading}
         settings={settings}
         savedKeys={savedKeys}

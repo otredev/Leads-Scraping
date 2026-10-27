@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Ban, MoreHorizontal, NotebookPen } from "lucide-react";
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, Stage } from "@/core/crm";
-import { ColorDot, LeadTags, Reach, ScoreBar, labelVar } from "./parts";
+import { ColorDot, LeadTags, ScoreBar, labelVar } from "./parts";
 import { MenuItem, Popover } from "./Popover";
 
 const PER_COLUMN = 50;
@@ -103,8 +103,8 @@ export function Board({
                         )}
                       </Popover>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <Reach lead={lead} />
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
+                      <span className="truncate">{lead.phone ?? lead.emails[0] ?? "Sin teléfono"}</span>
                       <ScoreBar lead={lead} />
                     </div>
                     {(lead.tags.length > 0 || lead.notes.length > 0 || lead.doNotContact) && (

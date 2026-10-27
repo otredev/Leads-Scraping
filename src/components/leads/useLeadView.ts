@@ -27,12 +27,13 @@ export function useLeadView<T extends Lead>(table: TableId, leads: T[], settings
     const base = builtinPrefs(table, fields);
     if (!stored) return base;
     const valid = stored.columns.filter((k) => fields.some((f) => f.key === k));
-    return { filters: stored.filters, sort: stored.sort, columns: valid.length ? valid : base.columns };
+    return { filters: stored.filters, sort: stored.sort, columns: valid.length ? valid : base.columns, widths: stored.widths };
   }, [stored, table, fields]);
 
   const [filters, setFilters] = useState<LeadFilters>(defaults.filters);
   const [sort, setSort] = useState<LeadSort | undefined>(defaults.sort);
   const [columns, setColumnsState] = useState<string[]>(defaults.columns);
+  const [widths, setWidths] = useState<Record<string, number>>(defaults.widths ?? {});
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -84,6 +85,21 @@ export function useLeadView<T extends Lead>(table: TableId, leads: T[], settings
       setSort((s) => (s?.field !== key ? { field: key, dir: "asc" } : s.dir === "asc" ? { field: key, dir: "desc" } : undefined));
     },
     setColumns: setColumnsState,
+    widths,
+    setWidths,
+    /** Preferencias a guardar al cambiar columnas o anchos (sin tocar los filtros predeterminados). */
+    layoutPrefs(patch: Partial<Pick<TablePrefs, "columns" | "widths">> = {}): TablePrefs {
+      return {
+        filters: defaults.filters,
+        sort: defaults.sort,
+        columns: patch.columns ?? columns,
+        widths: patch.widths ?? widths,
+      };
+    },
+    /** Preferencias completas con los filtros actuales (para "Fijar como predeterminados"). */
+    currentPrefs(): TablePrefs {
+      return { filters, sort, columns, widths };
+    },
     toggle(id: string) {
       setSelected((s) => {
         const n = new Set(s);

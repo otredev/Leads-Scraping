@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import { AtSign, Ban, ExternalLink, Globe, Phone, Sparkles } from "lucide-react";
+import { Ban, ExternalLink, Sparkles } from "lucide-react";
 import type { Lead, SavedLead } from "@/core/lead";
 import type { LeadField } from "@/core/fields";
 import { LABEL_COLORS, type CrmSettings, type LabelColor } from "@/core/crm";
@@ -94,31 +94,6 @@ export function DncBadge({ reason }: { reason?: string }) {
   );
 }
 
-/** Vías de contacto disponibles: lo primero que se mira de un lead. */
-export function Reach({ lead }: { lead: Lead }) {
-  const items = [
-    { on: lead.emails.length > 0, label: "email", Icon: AtSign },
-    { on: Boolean(lead.phone), label: "teléfono", Icon: Phone },
-    { on: Boolean(lead.website), label: "web", Icon: Globe },
-  ];
-  const have = items.filter((i) => i.on).map((i) => i.label);
-  const text = have.length ? `Tiene ${have.join(", ")}` : "Sin datos de contacto";
-  return (
-    <span className="inline-flex gap-1" title={text}>
-      {items.map(({ on, label, Icon }) => (
-        <span
-          key={label}
-          aria-hidden
-          className={`grid size-6 place-items-center rounded-md ${on ? "bg-primary-soft text-primary" : "text-line-strong"}`}
-        >
-          <Icon className="size-3.5" />
-        </span>
-      ))}
-      <span className="sr-only">{text}</span>
-    </span>
-  );
-}
-
 export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; settings?: CrmSettings }) {
   const crm = lead as Partial<SavedLead>;
   switch (field.key) {
@@ -134,7 +109,7 @@ export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; 
       return lead.emails.length ? (
         <span className="flex flex-col">
           {lead.emails.map((e) => (
-            <a key={e} href={`mailto:${e}`} className="text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+            <a key={e} href={`mailto:${e}`} className="break-all text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
               {e}
             </a>
           ))}
@@ -157,7 +132,7 @@ export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; 
           href={String(field.value(lead))}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg"
+          className="break-all text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg"
         >
           {field.key === "url" ? "Ver ficha" : hostname(String(field.value(lead)))}
         </a>

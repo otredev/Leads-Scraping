@@ -26,7 +26,7 @@ function Toggle({ on, label, onChange }: { on: boolean; label: string; onChange(
 }
 
 /** Ordenar y mostrar/ocultar columnas. */
-function ColumnsMenu({ view, onChange }: { view: LeadView; onChange(cols: string[]): void }) {
+function ColumnsMenu({ view, onChange, onResetWidths }: { view: LeadView; onChange(cols: string[]): void; onResetWidths(): void }) {
   const hidden = view.fields.filter((f) => !view.columns.includes(f.key));
   const move = (i: number, d: -1 | 1) => {
     const next = [...view.columns];
@@ -87,7 +87,15 @@ function ColumnsMenu({ view, onChange }: { view: LeadView; onChange(cols: string
           </ul>
         </>
       )}
-      <p className="hint px-1">El orden se guarda y también se usa al exportar &ldquo;solo columnas visibles&rdquo;.</p>
+      {Object.keys(view.widths).length > 0 && (
+        <button className="btn btn-ghost btn-sm justify-start" onClick={onResetWidths}>
+          Restablecer anchos
+        </button>
+      )}
+      <p className="hint px-1">
+        El orden se guarda y también se usa al exportar &ldquo;solo columnas visibles&rdquo;. Para cambiar el ancho, arrastra el borde derecho de
+        la cabecera.
+      </p>
     </Popover>
   );
 }
@@ -164,6 +172,7 @@ export function LeadsToolbar({
   searchId,
   extra,
   onColumnsChange,
+  onWidthsReset,
   onSaveDefaults,
 }: {
   view: LeadView;
@@ -174,6 +183,7 @@ export function LeadsToolbar({
   /** Acciones extra a la derecha (p. ej. "Guardar N visibles"). */
   extra?: ReactNode;
   onColumnsChange(cols: string[]): void;
+  onWidthsReset(): void;
   onSaveDefaults(): Promise<void>;
 }) {
   const f = view.filters;
@@ -333,7 +343,7 @@ export function LeadsToolbar({
             {view.rows.length === leads.length ? `${leads.length} ${saved ? "leads" : "resultados"}` : `${view.rows.length} de ${leads.length}`}
           </span>
           {extra}
-          <ColumnsMenu view={view} onChange={onColumnsChange} />
+          <ColumnsMenu view={view} onChange={onColumnsChange} onResetWidths={onWidthsReset} />
           <ExportMenu view={view} exporters={exporters} searchId={searchId} />
         </div>
       </div>

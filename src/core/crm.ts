@@ -66,6 +66,8 @@ export interface TablePrefs {
   sort?: LeadSort;
   /** Columnas visibles, en orden. */
   columns: string[];
+  /** Ancho de columna en px (las que el usuario ha ajustado). */
+  widths?: Record<string, number>;
 }
 
 export interface CrmSettings {
