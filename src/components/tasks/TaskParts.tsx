@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarClock, CalendarPlus, CalendarX, Download, MoreHorizontal, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarPlus, CalendarX, Download, Eye, EyeOff, MoreHorizontal, Trash2 } from "lucide-react";
 import type { Lead } from "@/core/lead";
 import { downloadIcs, googleCalendarLink, hasDue, taskBucket, toLocalInput } from "@/core/calendar";
 import { postJson, useData, type TaskView } from "../data/DataProvider";
@@ -51,7 +51,10 @@ export function TaskRow({ task, lead, showLead = true }: { task: TaskView; lead?
         aria-label={task.done ? `Marcar "${task.title}" como pendiente` : `Marcar "${task.title}" como hecha`}
       />
       <div className="min-w-0 flex-1">
-        <p className={`text-sm ${task.done ? "text-muted line-through" : "text-fg"}`}>{task.title}</p>
+        <p className={`flex items-center gap-1.5 text-sm ${task.done ? "text-muted line-through" : "text-fg"}`}>
+          {task.title}
+          {task.clientId && task.visibleToClient && <Eye className="size-3.5 text-muted" aria-label="Visible para el cliente" />}
+        </p>
         <p className="text-xs">
           <span className={bucket === "overdue" ? "font-medium text-danger" : "text-muted"}>
             {bucket === "overdue" ? "Vencida · " : ""}
@@ -60,12 +63,15 @@ export function TaskRow({ task, lead, showLead = true }: { task: TaskView; lead?
           {showLead && (
             <>
               <span className="text-muted"> · </span>
-              {task.leadExists ? (
-                <Link href={`/leads?lead=${task.leadId}`} className="text-fg-2 underline decoration-line-strong underline-offset-2 hover:decoration-fg">
-                  {task.leadName}
+              {task.exists ? (
+                <Link href={task.href} className="text-fg-2 underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                  {task.subject}
+                  {task.projectName ? ` · ${task.projectName}` : ""}
                 </Link>
               ) : (
-                <span className="text-muted">{task.leadName} (lead eliminado)</span>
+                <span className="text-muted">
+                  {task.subject} ({task.clientId ? "cliente eliminado" : "lead eliminado"})
+                </span>
               )}
             </>
           )}
@@ -103,6 +109,17 @@ export function TaskRow({ task, lead, showLead = true }: { task: TaskView; lead?
       >
         {(close) => (
           <>
+            {task.clientId && (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  void patch({ visibleToClient: !task.visibleToClient });
+                }}
+              >
+                {task.visibleToClient ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                {task.visibleToClient ? "Ocultar al cliente" : "Mostrar al cliente"}
+              </MenuItem>
+            )}
             {!task.done && (
               <MenuItem
                 onClick={() => {
@@ -174,10 +191,24 @@ function preset(kind: "today" | "tomorrow" | "week") {
   return toLocalInput(d);
 }
 
-/** Crear una tarea para un lead. */
-export function TaskForm({ leadId, disabled }: { leadId: string; disabled?: boolean }) {
+/** Crear una tarea para un lead, o para un cliente / proyecto. */
+export function TaskForm({
+  leadId,
+  clientId,
+  projectId,
+  disabled,
+  onCreated,
+}: {
+  leadId?: string;
+  clientId?: string;
+  projectId?: string;
+  disabled?: boolean;
+  onCreated?(): void;
+}) {
   const { refreshTasks } = useData();
   const [title, setTitle] = useState("");
+  const [visible, setVisible] = useState(true);
+  const forClient = Boolean(clientId || projectId);
   // Vacío = sin fecha (la fecha es opcional).
   const [due, setDue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -191,10 +222,12 @@ export function TaskForm({ leadId, disabled }: { leadId: string; disabled?: bool
         setBusy(true);
         setError(undefined);
         try {
-          await postJson("/api/tasks", { leadId, title, ...(due ? { dueAt: new Date(due).toISOString() } : {}) });
+          const target = forClient ? { clientId, projectId, visibleToClient: visible } : { leadId };
+          await postJson("/api/tasks", { ...target, title, ...(due ? { dueAt: new Date(due).toISOString() } : {}) });
           setTitle("");
           setDue("");
           await refreshTasks();
+          onCreated?.();
         } catch (err) {
           setError((err as Error).message);
         } finally {
@@ -204,7 +237,7 @@ export function TaskForm({ leadId, disabled }: { leadId: string; disabled?: bool
     >
       <input
         className="input"
-        placeholder="Qué hay que hacer: llamar, enviar presupuesto, visitar…"
+        placeholder={forClient ? "Qué hay que hacer: diseñar portada, revisar textos…" : "Qué hay que hacer: llamar, enviar presupuesto, visitar…"}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         aria-label="Nueva tarea"
@@ -239,6 +272,12 @@ export function TaskForm({ leadId, disabled }: { leadId: string; disabled?: bool
           <button type="button" className="btn btn-ghost btn-sm py-0.5 text-xs" onClick={() => setDue("")}>
             Sin fecha
           </button>
+        )}
+        {forClient && (
+          <label className="ml-auto flex items-center gap-1.5 text-xs text-fg-2">
+            <input type="checkbox" className="size-3.5 accent-primary" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
+            Visible para el cliente
+          </label>
         )}
       </div>
       {error && <p className="text-[13px] text-danger">{error}</p>}

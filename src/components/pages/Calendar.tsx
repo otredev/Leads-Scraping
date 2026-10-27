@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { CalendarArrowDown, ChevronLeft, ChevronRight, GripVertical, Plus } from "lucide-react";
 import type { SavedLead } from "@/core/lead";
+import type { Milestone, Project } from "@/core/clients";
 import { addDays, compareTasks, dayKey, hasDue, monthGrid, moveToDay, startOfWeek, taskBucket } from "@/core/calendar";
 import { api, postJson, useData, type TaskView } from "../data/DataProvider";
 import { LeadPicker, type LeadOption } from "../calendar/LeadPicker";
@@ -67,6 +68,13 @@ export function CalendarPage() {
     dueAt: Record<string, string>;
   }>({ base: tasks, dueAt: {} });
   const [leads, setLeads] = useState<LeadOption[]>();
+  const [projects, setProjects] = useState<(Project & { clientName: string })[]>([]);
+
+  useEffect(() => {
+    api<(Project & { clientName: string })[]>("/api/projects")
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  }, []);
 
   useEffect(() => {
     api<SavedLead[]>("/api/leads")
@@ -91,6 +99,7 @@ export function CalendarPage() {
 
   const leadById = useMemo(() => new Map((leads ?? []).map((l) => [l.id, l])), [leads]);
   const stageColor = (t: TaskView) => {
+    if (!t.leadId) return undefined;
     const lead = leadById.get(t.leadId);
     return settings?.stages.find((s) => s.id === lead?.stage)?.color;
   };
@@ -105,6 +114,19 @@ export function CalendarPage() {
     for (const list of map.values()) list.sort(compareTasks);
     return map;
   }, [view_tasks, showDone]);
+
+  // Hitos de proyectos de clientes (solo lectura en el calendario).
+  const milestonesByDay = useMemo(() => {
+    const map = new Map<string, MilestoneItem[]>();
+    for (const p of projects) {
+      for (const m of p.milestones) {
+        if (!m.dueAt || (m.done && !showDone)) continue;
+        const k = dayKey(new Date(m.dueAt));
+        map.set(k, [...(map.get(k) ?? []), { ...m, projectId: p.id, projectName: p.name, clientId: p.clientId, clientName: p.clientName }]);
+      }
+    }
+    return map;
+  }, [projects, showDone]);
 
   const undated = view_tasks.filter((t) => !t.done && !hasDue(t)).sort(compareTasks);
   const todayKey = today ?? "2000-01-01";
@@ -257,6 +279,7 @@ export function CalendarPage() {
                 {days.map((day, i) => {
                   const key = dayKey(day);
                   const list = byDay.get(key) ?? [];
+                  const ms = milestonesByDay.get(key) ?? [];
                   const inMonth = day.getMonth() === cursor.getMonth();
                   const isToday = key === todayKey;
                   const isSelected = key === selected;
@@ -284,18 +307,26 @@ export function CalendarPage() {
                         {day.getDate()}
                       </button>
                       {/* Móvil: puntos. Escritorio: hasta 3 tareas. */}
-                      {list.length > 0 && (
+                      {list.length + ms.length > 0 && (
                         <div className="flex gap-0.5 px-1 sm:hidden" aria-hidden>
+                          {ms.slice(0, 2).map((m) => (
+                            <span key={m.id} className="size-1.5 rotate-45 bg-fg" />
+                          ))}
                           {list.slice(0, 3).map((t) => (
                             <span key={t.id} className={`size-1.5 rounded-full ${taskBucket(t) === "overdue" ? "bg-danger" : "bg-fg-2"}`} />
                           ))}
                         </div>
                       )}
                       <div className="hidden flex-col gap-0.5 sm:flex">
-                        {list.slice(0, 3).map((t) => (
+                        {ms.slice(0, 2).map((m) => (
+                          <MilestoneChip key={m.id} item={m} />
+                        ))}
+                        {list.slice(0, Math.max(1, 3 - Math.min(ms.length, 2))).map((t) => (
                           <TaskChip key={t.id} task={t} color={stageColor(t)} />
                         ))}
-                        {list.length > 3 && <span className="px-1 text-[11px] text-muted">+{list.length - 3} más</span>}
+                        {list.length + Math.min(ms.length, 2) > 3 && (
+                          <span className="px-1 text-[11px] text-muted">+{list.length + Math.min(ms.length, 2) - 3} más</span>
+                        )}
                       </div>
                     </div>
                   );
@@ -307,6 +338,7 @@ export function CalendarPage() {
               {days.map((day, i) => {
                 const key = dayKey(day);
                 const list = byDay.get(key) ?? [];
+                const ms = milestonesByDay.get(key) ?? [];
                 const isToday = key === todayKey;
                 return (
                   <section
@@ -326,10 +358,13 @@ export function CalendarPage() {
                         {day.getDate()}
                       </span>
                     </header>
+                    {ms.map((m) => (
+                      <MilestoneChip key={m.id} item={m} wrap />
+                    ))}
                     {list.map((t) => (
                       <TaskChip key={t.id} task={t} color={stageColor(t)} showLead wrap />
                     ))}
-                    {!list.length && <span className="px-1 text-xs text-muted lg:hidden">Sin tareas</span>}
+                    {!list.length && !ms.length && <span className="px-1 text-xs text-muted lg:hidden">Sin tareas</span>}
                   </section>
                 );
               })}
@@ -337,11 +372,20 @@ export function CalendarPage() {
           )}
         </Card>
 
-        <div className={`grid grid-cols-1 items-start gap-5 ${view === "week" ? "lg:grid-cols-2" : ""}`}>
+        <div className={view === "week" ? "grid grid-cols-1 items-start gap-5 lg:grid-cols-2" : "flex flex-col gap-5"}>
           <Card
             title={loading ? <Skeleton className="h-5 w-44" /> : cap(dayTitleFmt.format(selectedDate))}
             description={!loading && selected === todayKey ? "Hoy" : undefined}
           >
+            {(milestonesByDay.get(selected) ?? []).length > 0 && (
+              <ul className="mb-3 flex flex-col gap-1.5">
+                {(milestonesByDay.get(selected) ?? []).map((m) => (
+                  <li key={m.id}>
+                    <MilestoneChip item={m} wrap />
+                  </li>
+                ))}
+              </ul>
+            )}
             <DayPanel
               day={selectedDate}
               tasks={(byDay.get(selected) ?? []).concat(
@@ -402,7 +446,7 @@ function TaskChip({ task, color, showLead, wrap }: { task: TaskView; color?: str
       className={`group flex min-w-0 items-start gap-1.5 rounded-md border border-line bg-surface px-1.5 py-1 text-[12px] leading-tight ${
         task.done ? "opacity-60" : "cursor-grab active:cursor-grabbing"
       }`}
-      title={`${task.title} · ${task.leadName}${time ? ` · ${time}` : ""}`}
+      title={`${task.title} · ${task.subject}${time ? ` · ${time}` : ""}`}
     >
       <ColorDot color={color ?? "gray"} className="mt-[3px] size-2" />
       <span className="min-w-0 flex-1">
@@ -415,7 +459,7 @@ function TaskChip({ task, color, showLead, wrap }: { task: TaskView; color?: str
           {!wrap && time && <span className="mr-1 tabular-nums text-muted">{time}</span>}
           {task.title}
         </span>
-        {showLead && <span className="block truncate text-[11px] text-muted">{task.leadName}</span>}
+        {showLead && <span className="block truncate text-[11px] text-muted">{task.subject}</span>}
       </span>
       {!task.done && <GripVertical className="mt-px hidden size-3 text-muted group-hover:block" aria-hidden />}
     </div>
@@ -501,5 +545,25 @@ function DayPanel({ day, tasks, leads, onCreated }: { day: Date; tasks: TaskView
         </button>
       )}
     </div>
+  );
+}
+
+type MilestoneItem = Milestone & { projectId: string; projectName: string; clientId: string; clientName: string };
+
+/** Hito de un proyecto de cliente (enlaza a su ficha). */
+function MilestoneChip({ item, wrap }: { item: MilestoneItem; wrap?: boolean }) {
+  return (
+    <Link
+      href={`/clientes/${item.clientId}?proyecto=${item.projectId}`}
+      onClick={(e) => e.stopPropagation()}
+      className={`flex min-w-0 items-start gap-1.5 rounded-md border border-fg/40 bg-surface-2 px-1.5 py-1 text-[12px] leading-tight hover:border-fg ${item.done ? "opacity-60" : ""}`}
+      title={`Hito: ${item.title} · ${item.projectName} (${item.clientName})`}
+    >
+      <span className="mt-[3px] size-2 shrink-0 rotate-45 bg-fg" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className={`block ${wrap ? "line-clamp-2" : "truncate"} font-medium ${item.done ? "line-through" : ""}`}>{item.title}</span>
+        {wrap && <span className="block truncate text-[11px] text-muted">{item.clientName} · {item.projectName}</span>}
+      </span>
+    </Link>
   );
 }

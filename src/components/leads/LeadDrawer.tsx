@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Share2, Sparkles, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AtSign, Ban, Briefcase, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Share2, Sparkles, Trash2, X } from "lucide-react";
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
@@ -55,6 +56,7 @@ export function LeadDrawer({
   const [loadingFresh, setLoadingFresh] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
   const { tasks } = useData();
   const leadTasks = tasks
     .filter((t) => t.leadId === initial.id)
@@ -409,6 +411,23 @@ export function LeadDrawer({
               title="Lanza una búsqueda de su ficha en Google Maps y actualiza teléfono, web, valoración, horario y reseñas"
             >
               <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden /> Volver a extraer datos
+            </button>
+            <button
+              className="btn btn-sm"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const c = await postJson<{ id: string }>("/api/clients", { fromLeadId: lead.id });
+                  router.push(`/clientes/${c.id}`);
+                } catch (err) {
+                  setError((err as Error).message);
+                  setBusy(false);
+                }
+              }}
+              title="Crea un cliente con sus datos (o abre el que ya existe) para gestionar proyectos, pagos y horas"
+            >
+              <Briefcase className="size-3.5" aria-hidden /> Convertir en cliente
             </button>
             <button className="btn btn-sm text-danger" disabled={busy} onClick={() => void onTrash(lead.id)}>
               <Trash2 className="size-3.5" aria-hidden /> Mover a la papelera

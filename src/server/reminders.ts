@@ -2,6 +2,7 @@ import "server-only";
 import { hasDue } from "@/core/calendar";
 import { getStore } from "./registry";
 import { hasSubscribers, notifyAll } from "./notifications";
+import { listTasks } from "./tasks";
 
 /**
  * Recordatorios en segundo plano: cada minuto busca tareas que acaban de
@@ -29,14 +30,14 @@ export async function checkDueTasks(now = new Date()) {
     });
     if (!due.length || !(await hasSubscribers())) return 0;
 
-    const leads = new Map((await store.listSavedLeads()).map((l) => [l.id, l]));
+    const info = new Map((await listTasks()).map((t) => [t.id, t]));
     let sent = 0;
     for (const t of due) {
-      const lead = leads.get(t.leadId);
+      const item = info.get(t.id);
       sent += await notifyAll({
         title: t.title,
-        body: `${lead?.name ?? t.leadName} · ${timeFmt.format(new Date(t.dueAt!))}`,
-        url: lead ? `/leads?lead=${lead.id}` : "/tareas",
+        body: `${item?.subject ?? t.leadName} · ${timeFmt.format(new Date(t.dueAt!))}`,
+        url: item?.exists ? item.href : "/tareas",
         tag: `task-${t.id}`,
       });
       await store.updateTask(t.id, { notifiedAt: now.toISOString() });

@@ -51,9 +51,9 @@ export function TaskNotifier() {
         // Con push activo en este navegador, el servidor ya envía la notificación del sistema.
         if (!pushActive) {
           void showNotification(t.title, {
-            body: `${t.leadName} · ${formatDue(t.dueAt!)}`,
+            body: `${t.subject} · ${formatDue(t.dueAt!)}`,
             tag: t.id,
-            url: t.leadExists ? `/leads?lead=${t.leadId}` : "/tareas",
+            url: t.exists ? t.href : "/tareas",
           });
         }
       }
@@ -85,12 +85,12 @@ export function TaskNotifier() {
           <div className="min-w-0 flex-1 text-sm">
             <p className="font-medium">{t.title}</p>
             <p className="text-xs text-muted">
-              {t.leadExists ? (
-                <Link href={`/leads?lead=${t.leadId}`} className="underline underline-offset-2" onClick={() => setToasts((l) => l.filter((x) => x.id !== t.id))}>
-                  {t.leadName}
+              {t.exists ? (
+                <Link href={t.href} className="underline underline-offset-2" onClick={() => setToasts((l) => l.filter((x) => x.id !== t.id))}>
+                  {t.subject}
                 </Link>
               ) : (
-                t.leadName
+                t.subject
               )}{" "}
               · {formatDue(t.dueAt!)}
             </p>

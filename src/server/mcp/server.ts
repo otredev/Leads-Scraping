@@ -15,6 +15,8 @@ import { getEnrichJob, startEnrichment, waitForJob } from "../enrich";
 import { startSearch } from "../runner";
 import { getStats } from "../stats";
 import { createTask, listTasks, updateTask } from "../tasks";
+import { clientsOverview, createClient, createProject, updateProject } from "../clients";
+import { PROJECT_STATUSES, projectProgress, projectTotals, type ProjectStatus } from "@/core/clients";
 
 /**
  * Servidor MCP: expone el CRM a Claude (u otro cliente MCP).
@@ -147,6 +149,7 @@ export function createMcpServer() {
         "Flujo típico: start_search → get_search hasta que termine → list_results → save_results → trabajar los leads con list_leads/get_lead/update_lead, tareas y mensajes.",
         "Etapas y etiquetas se pueden indicar por nombre. Respeta 'doNotContact': no prepares mensajes para esos leads.",
         "Para crear la página de un negocio en Otrelink usa otrelink_brief y, al terminar, set_lead_page con el enlace.",
+        "Cuando un lead se convierte en cliente (create_client con fromLeadId), su trabajo se organiza en proyectos con hitos, tareas, pagos y horas.",
       ].join(" "),
     },
   );
@@ -237,7 +240,7 @@ export function createMcpServer() {
     },
     run(async ({ id }: { id: string }) => {
       const store = getStore();
-      const [lead, settings, tasks] = await Promise.all([store.getSavedLead(id), store.getSettings(), listTasks(id)]);
+      const [lead, settings, tasks] = await Promise.all([store.getSavedLead(id), store.getSettings(), listTasks({ leadId: id })]);
       if (!lead) throw badRequest("Lead no encontrado");
       return {
         ...summary(lead, settings),
@@ -407,7 +410,7 @@ export function createMcpServer() {
       annotations: { readOnlyHint: true },
     },
     run(async ({ leadId, status = "pending" }: { leadId?: string; status?: string }) => {
-      const tasks = await listTasks(leadId);
+      const tasks = await listTasks({ leadId });
       return tasks
         .map((t) => ({ ...t, bucket: taskBucket(t) }))
         .filter((t) => status === "all" || (status === "pending" ? t.bucket !== "done" : t.bucket === status))
@@ -419,16 +422,132 @@ export function createMcpServer() {
     "create_task",
     {
       title: "Crear tarea",
-      description: "Crea una tarea de seguimiento para un lead. La fecha es opcional; si la tiene, la app avisa cuando vence y se devuelve un enlace para Google Calendar.",
+      description:
+        "Crea una tarea para un lead (leadId) o para un cliente (clientId) y opcionalmente uno de sus proyectos (projectId). La fecha es opcional; si la tiene, la app avisa cuando vence y se devuelve un enlace para Google Calendar.",
       inputSchema: {
-        leadId: z.string(),
+        leadId: z.string().optional(),
+        clientId: z.string().optional(),
+        projectId: z.string().optional(),
         title: z.string().min(1).max(200),
         dueAt: z.string().optional().describe("Opcional. Fecha y hora ISO 8601 con zona, p. ej. 2026-11-02T10:00:00+01:00"),
+        visibleToClient: z.boolean().optional().describe("Solo tareas de cliente: la verá en su portal"),
       },
     },
-    run(async (a: { leadId: string; title: string; dueAt?: string }) => {
+    run(async (a: { leadId?: string; clientId?: string; projectId?: string; title: string; dueAt?: string; visibleToClient?: boolean }) => {
       const task = await createTask(a);
       return { ...task, googleCalendar: hasDue(task) ? googleCalendarLink(task) : undefined };
+    }),
+  );
+
+  // ── Clientes y proyectos ──
+
+  server.registerTool(
+    "list_clients",
+    {
+      title: "Clientes",
+      description: "Clientes con sus proyectos abiertos, avance, próxima entrega, retrasos y lo pendiente de cobro.",
+      annotations: { readOnlyHint: true },
+    },
+    run(async () => clientsOverview()),
+  );
+
+  server.registerTool(
+    "get_client",
+    {
+      title: "Ficha de un cliente",
+      description: "Datos del cliente y sus proyectos completos (hitos, pagos, horas) con sus tareas.",
+      inputSchema: { id: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ id }: { id: string }) => {
+      const store = getStore();
+      const client = await store.getClient(id);
+      if (!client) throw badRequest("Cliente no encontrado");
+      const [projects, tasks] = await Promise.all([store.listProjects({ clientId: id }), listTasks({ clientId: id })]);
+      return {
+        client,
+        projects: projects.map((p) => ({
+          ...p,
+          progress: projectProgress(p, tasks.filter((t) => t.projectId === p.id)),
+          totals: projectTotals(p),
+          tasks: tasks.filter((t) => t.projectId === p.id).map((t) => ({ id: t.id, title: t.title, dueAt: t.dueAt, done: t.done, visibleToClient: t.visibleToClient })),
+        })),
+        generalTasks: tasks.filter((t) => !t.projectId).map((t) => ({ id: t.id, title: t.title, dueAt: t.dueAt, done: t.done })),
+      };
+    }),
+  );
+
+  server.registerTool(
+    "create_client",
+    {
+      title: "Crear cliente",
+      description: "Crea un cliente a mano o desde un lead guardado (fromLeadId: copia sus datos y lo pasa a la última etapa). Si el lead ya era cliente, devuelve el existente.",
+      inputSchema: {
+        fromLeadId: z.string().optional(),
+        name: z.string().max(200).optional(),
+        contactName: z.string().max(200).optional(),
+        email: z.string().max(200).optional(),
+        phone: z.string().max(40).optional(),
+        website: z.string().max(300).optional(),
+        address: z.string().max(300).optional(),
+        notes: z.string().max(5000).optional(),
+      },
+    },
+    run(async (a: Record<string, unknown>) => {
+      const { client, existed } = await createClient(a);
+      return { ...client, existed };
+    }),
+  );
+
+  server.registerTool(
+    "create_project",
+    {
+      title: "Crear proyecto",
+      description: "Crea un proyecto para un cliente. Fechas en formato AAAA-MM-DD.",
+      inputSchema: {
+        clientId: z.string(),
+        name: z.string().min(1).max(200),
+        description: z.string().max(5000).optional(),
+        status: z.enum(PROJECT_STATUSES.map((s) => s.id) as [ProjectStatus, ...ProjectStatus[]]).optional(),
+        startDate: z.string().optional(),
+        dueDate: z.string().optional(),
+        currency: z.string().length(3).optional(),
+        budget: z.number().nonnegative().optional(),
+        hourlyRate: z.number().nonnegative().optional(),
+      },
+    },
+    run(async (a: Record<string, unknown>) => createProject(a)),
+  );
+
+  server.registerTool(
+    "update_project",
+    {
+      title: "Actualizar proyecto",
+      description:
+        "Cambia datos del proyecto y gestiona sus hitos, pagos y horas. Ejemplos: { status: 'review' }, { addMilestone: { title, dueAt, visibleToClient } }, { updateMilestone: { id, done: true } }, { addPayment: { amount, date, note } }, { addTime: { hours: 1.5, note } }.",
+      inputSchema: {
+        id: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        status: z.enum(PROJECT_STATUSES.map((s) => s.id) as [ProjectStatus, ...ProjectStatus[]]).optional(),
+        startDate: z.string().nullable().optional(),
+        dueDate: z.string().nullable().optional(),
+        budget: z.number().nonnegative().nullable().optional(),
+        hourlyRate: z.number().nonnegative().nullable().optional(),
+        addMilestone: z.object({ title: z.string(), dueAt: z.string().optional(), visibleToClient: z.boolean().optional() }).optional(),
+        updateMilestone: z
+          .object({ id: z.string(), title: z.string().optional(), dueAt: z.string().nullable().optional(), done: z.boolean().optional(), visibleToClient: z.boolean().optional() })
+          .optional(),
+        deleteMilestone: z.string().optional(),
+        addPayment: z.object({ amount: z.number().positive(), date: z.string().optional(), note: z.string().optional() }).optional(),
+        deletePayment: z.string().optional(),
+        addTime: z.object({ hours: z.number().positive().max(24), date: z.string().optional(), note: z.string().optional() }).optional(),
+        deleteTime: z.string().optional(),
+      },
+    },
+    run(async ({ id, ...rest }: { id: string } & Record<string, unknown>) => {
+      const p = await updateProject(id, rest);
+      return { ...p, progress: projectProgress(p, await listTasks({ projectId: id })), totals: projectTotals(p) };
     }),
   );
 

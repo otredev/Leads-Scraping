@@ -2,6 +2,7 @@ import type { HealthStatus } from "./provider";
 import type { Lead, SavedLead } from "./lead";
 import type { Search } from "./search";
 import type { CrmSettings, LeadUpdate, Task } from "./crm";
+import type { Client, Project } from "./clients";
 
 /** Copia de seguridad completa, independiente del almacenamiento. */
 export interface Backup {
@@ -17,6 +18,9 @@ export interface Backup {
   settings?: CrmSettings;
   /** Tareas (desde la fase 4). */
   tasks?: Task[];
+  /** Clientes y proyectos. */
+  clients?: Client[];
+  projects?: Project[];
 }
 
 export interface ImportSummary {
@@ -72,11 +76,22 @@ export interface LeadStore {
   removeTag(tagId: string): Promise<number>;
 
   // ── Tareas ──
-  /** Todas las tareas, o las de un lead. Ordenadas por fecha. */
-  listTasks(opts?: { leadId?: string }): Promise<Task[]>;
+  /** Todas las tareas, o las de un lead, cliente o proyecto. Ordenadas por fecha. */
+  listTasks(opts?: { leadId?: string; clientId?: string; projectId?: string }): Promise<Task[]>;
   createTask(task: Task): Promise<void>;
   updateTask(id: string, patch: Partial<Task>): Promise<Task | undefined>;
   deleteTask(id: string): Promise<void>;
+
+  // ── Clientes y proyectos ──
+  listClients(): Promise<Client[]>;
+  getClient(id: string): Promise<Client | undefined>;
+  /** Crea o reemplaza (por id). */
+  putClient(client: Client): Promise<void>;
+  deleteClient(id: string): Promise<void>;
+  listProjects(opts?: { clientId?: string }): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  putProject(project: Project): Promise<void>;
+  deleteProject(id: string): Promise<void>;
 
   // ── Ajustes del CRM ──
   getSettings(): Promise<CrmSettings>;

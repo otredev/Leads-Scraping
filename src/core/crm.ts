@@ -83,9 +83,15 @@ export interface CrmFields {
 
 export interface Task {
   id: string;
-  leadId: string;
-  /** Copia del nombre del lead para listarlas sin cargar el lead. */
+  /** Lead de la tarea (seguimiento comercial). */
+  leadId?: string;
+  /** Cliente y, opcionalmente, proyecto (trabajo para un cliente). */
+  clientId?: string;
+  projectId?: string;
+  /** Copia del nombre del lead o cliente para listarlas sin cargarlo. */
   leadName: string;
+  /** La verá el cliente en su portal. */
+  visibleToClient?: boolean;
   title: string;
   /** Fecha y hora (ISO). Opcional: sin fecha es una tarea "cuando se pueda". */
   dueAt?: string;

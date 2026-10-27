@@ -22,17 +22,32 @@ function cleanDate(v: unknown): string | undefined {
 export async function createTask(raw: unknown): Promise<Task> {
   const r = (raw ?? {}) as Record<string, unknown>;
   const store = getStore();
-  const lead = typeof r.leadId === "string" ? await store.getSavedLead(r.leadId) : undefined;
-  if (!lead) throw badRequest("Lead no encontrado");
-  const task: Task = {
+  const base = {
     id: randomUUID(),
-    leadId: lead.id,
-    leadName: lead.name,
     title: cleanTitle(r.title),
     ...(cleanDate(r.dueAt) ? { dueAt: cleanDate(r.dueAt) } : {}),
     done: false,
     createdAt: new Date().toISOString(),
   };
+  let task: Task;
+  if (typeof r.projectId === "string" || typeof r.clientId === "string") {
+    // Tarea de un cliente (y opcionalmente de uno de sus proyectos).
+    const project = typeof r.projectId === "string" ? await store.getProject(r.projectId) : undefined;
+    if (r.projectId && !project) throw badRequest("Proyecto no encontrado");
+    const client = await store.getClient(project?.clientId ?? String(r.clientId));
+    if (!client) throw badRequest("Cliente no encontrado");
+    task = {
+      ...base,
+      clientId: client.id,
+      ...(project ? { projectId: project.id } : {}),
+      leadName: client.name,
+      ...(r.visibleToClient === true ? { visibleToClient: true } : {}),
+    };
+  } else {
+    const lead = typeof r.leadId === "string" ? await store.getSavedLead(r.leadId) : undefined;
+    if (!lead) throw badRequest("Lead no encontrado");
+    task = { ...base, leadId: lead.id, leadName: lead.name };
+  }
   await store.createTask(task);
   return task;
 }
@@ -46,7 +61,8 @@ export async function updateTask(id: string, raw: unknown) {
     patch.dueAt = cleanDate(r.dueAt);
     patch.notifiedAt = undefined; // nueva fecha: volverá a avisar
   }
-  const changes = Object.keys(r).filter((k) => ["title", "dueAt", "done"].includes(k));
+  if (typeof r.visibleToClient === "boolean") patch.visibleToClient = r.visibleToClient;
+  const changes = Object.keys(r).filter((k) => ["title", "dueAt", "done", "visibleToClient"].includes(k));
   if (typeof r.done === "boolean") {
     patch.done = r.done;
     patch.doneAt = r.done ? new Date().toISOString() : undefined;
@@ -57,10 +73,49 @@ export async function updateTask(id: string, raw: unknown) {
   return task;
 }
 
-/** Tareas con el nombre actual de su lead (y si sigue existiendo). */
-export async function listTasks(leadId?: string) {
+export interface TaskListItem extends Task {
+  /** Nombre actual del lead o cliente. */
+  subject: string;
+  /** Enlace a su ficha. */
+  href: string;
+  /** El lead o cliente sigue existiendo. */
+  exists: boolean;
+  /** @deprecated usa `exists`. */
+  leadExists: boolean;
+  projectName?: string;
+}
+
+/** Tareas con el nombre actual de su lead o cliente y el enlace a su ficha. */
+export async function listTasks(opts: { leadId?: string; clientId?: string; projectId?: string } = {}): Promise<TaskListItem[]> {
   const store = getStore();
-  const [tasks, leads] = await Promise.all([store.listTasks({ leadId }), store.listSavedLeads()]);
-  const names = new Map(leads.map((l) => [l.id, l.name]));
-  return tasks.map((t) => ({ ...t, leadName: names.get(t.leadId) ?? t.leadName, leadExists: names.has(t.leadId) }));
+  const [tasks, leads, clients, projects] = await Promise.all([
+    store.listTasks(opts),
+    store.listSavedLeads(),
+    store.listClients(),
+    store.listProjects(),
+  ]);
+  const leadNames = new Map(leads.map((l) => [l.id, l.name]));
+  const clientNames = new Map(clients.map((c) => [c.id, c.name]));
+  const projectNames = new Map(projects.map((p) => [p.id, p.name]));
+  return tasks.map((t) => {
+    if (t.clientId) {
+      const exists = clientNames.has(t.clientId);
+      return {
+        ...t,
+        subject: clientNames.get(t.clientId) ?? t.leadName,
+        projectName: t.projectId ? projectNames.get(t.projectId) : undefined,
+        href: `/clientes/${t.clientId}${t.projectId ? `?proyecto=${t.projectId}` : ""}`,
+        exists,
+        leadExists: exists,
+      };
+    }
+    const exists = Boolean(t.leadId && leadNames.has(t.leadId));
+    return {
+      ...t,
+      subject: (t.leadId && leadNames.get(t.leadId)) || t.leadName,
+      href: `/leads?lead=${t.leadId}`,
+      exists,
+      leadExists: exists,
+    };
+  });
 }

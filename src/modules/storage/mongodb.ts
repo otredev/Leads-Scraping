@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { MongoClient, type AnyBulkWriteOperation, type Db, type UpdateFilter } from "mongodb";
 import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
 import { compareTasks } from "@/core/calendar";
+import { normalizeProject, type Client, type Project } from "@/core/clients";
 import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "@/core/storage";
 import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
@@ -88,6 +89,8 @@ async function ensureIndexes(d: Db) {
   await d.collection("leads").createIndex({ tags: 1 });
   await d.collection("tasks").createIndex({ leadId: 1 });
   await d.collection("tasks").createIndex({ dueAt: 1 });
+  await d.collection("tasks").createIndex({ clientId: 1 });
+  await d.collection("projects").createIndex({ clientId: 1 });
   try {
     await d.collection("leads").createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 });
   } catch {
@@ -99,6 +102,8 @@ const searches = async () => (await db()).collection<Doc<Search>>("searches");
 const results = async () => (await db()).collection<ResultDoc>("results");
 const leads = async () => (await db()).collection<SavedDoc>("leads");
 const tasks = async () => (await db()).collection<Doc<Task>>("tasks");
+const clientsCol = async () => (await db()).collection<Doc<Client>>("clients");
+const projectsCol = async () => (await db()).collection<Doc<Project>>("projects");
 let metaQueue: Promise<unknown> = Promise.resolve();
 const metaCol = async () => (await db()).collection<{ _id: string; value: unknown }>("meta");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
@@ -347,8 +352,9 @@ class MongoStore implements LeadStore {
 
   // ── Tareas ──
 
-  async listTasks(opts: { leadId?: string } = {}) {
-    const docs = await (await tasks()).find(opts.leadId ? { leadId: opts.leadId } : {}).toArray();
+  async listTasks(opts: { leadId?: string; clientId?: string; projectId?: string } = {}) {
+    const filter = clean({ leadId: opts.leadId, clientId: opts.clientId, projectId: opts.projectId });
+    const docs = await (await tasks()).find(filter).toArray();
     return docs.map((d) => fromDoc<Task>(d) as Task).sort(compareTasks);
   }
 
@@ -387,6 +393,45 @@ class MongoStore implements LeadStore {
 
   async saveSettings(settings: CrmSettings) {
     await (await settingsCol()).replaceOne({ _id: "crm" }, { ...settings }, { upsert: true });
+  }
+
+  // ── Clientes y proyectos ──
+
+  async listClients() {
+    const docs = await (await clientsCol()).find().toArray();
+    return docs.map((d) => fromDoc<Client>(d)!).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+
+  async getClient(id: string) {
+    return fromDoc<Client>(await (await clientsCol()).findOne({ _id: id }));
+  }
+
+  async putClient(client: Client) {
+    const { id, ...rest } = client;
+    await (await clientsCol()).replaceOne({ _id: id }, clean(rest) as Doc<Client>, { upsert: true });
+  }
+
+  async deleteClient(id: string) {
+    await (await clientsCol()).deleteOne({ _id: id });
+  }
+
+  async listProjects(opts: { clientId?: string } = {}) {
+    const docs = await (await projectsCol()).find(opts.clientId ? { clientId: opts.clientId } : {}).sort({ createdAt: -1 }).toArray();
+    return docs.map((d) => normalizeProject(fromDoc<Project>(d)!));
+  }
+
+  async getProject(id: string) {
+    const p = fromDoc<Project>(await (await projectsCol()).findOne({ _id: id }));
+    return p && normalizeProject(p);
+  }
+
+  async putProject(project: Project) {
+    const { id, ...rest } = project;
+    await (await projectsCol()).replaceOne({ _id: id }, clean(rest) as Doc<Project>, { upsert: true });
+  }
+
+  async deleteProject(id: string) {
+    await (await projectsCol()).deleteOne({ _id: id });
   }
 
   // ── Datos internos de los módulos ──
@@ -429,6 +474,8 @@ class MongoStore implements LeadStore {
       leads: l.map(savedFromDoc),
       settings: await this.getSettings(),
       tasks: await this.listTasks(),
+      clients: await this.listClients(),
+      projects: await this.listProjects(),
     };
   }
 
@@ -470,6 +517,18 @@ class MongoStore implements LeadStore {
       await (await tasks()).bulkWrite(
         backup.tasks.map(({ id, ...rest }) => ({
           updateOne: { filter: { _id: id }, update: { $setOnInsert: clean(rest) as Doc<Task> }, upsert: true },
+        })),
+        { ordered: false },
+      );
+    }
+    for (const [col, list] of [
+      [await clientsCol(), backup.clients ?? []],
+      [await projectsCol(), backup.projects ?? []],
+    ] as const) {
+      if (!list.length) continue;
+      await (col as Awaited<ReturnType<typeof clientsCol>>).bulkWrite(
+        list.map(({ id, ...rest }) => ({
+          updateOne: { filter: { _id: id }, update: { $setOnInsert: clean(rest) as Doc<Client> }, upsert: true },
         })),
         { ordered: false },
       );

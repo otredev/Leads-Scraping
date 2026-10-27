@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { Search } from "@/core/search";
 import type { CrmSettings, Task } from "@/core/crm";
 
-export type TaskView = Task & { leadExists: boolean };
+/** Tarea tal como la devuelve /api/tasks (con el nombre y enlace de su lead o cliente). */
+export type TaskView = Task & { leadExists: boolean; subject: string; href: string; exists: boolean; projectName?: string };
 import type { ModulesInfo } from "../types";
 
 interface DataContextValue {

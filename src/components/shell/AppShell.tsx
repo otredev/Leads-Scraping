@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
@@ -16,6 +16,7 @@ const NAV = [
   { href: "/busquedas", label: "Búsquedas", Icon: Search },
   { href: "/resultados", label: "Resultados", Icon: ListFilter },
   { href: "/leads", label: "Leads", Icon: Users },
+  { href: "/clientes", label: "Clientes", Icon: Briefcase },
   { href: "/tareas", label: "Tareas", Icon: CalendarCheck },
   { href: "/calendario", label: "Calendario", Icon: CalendarDays },
   { href: "/papelera", label: "Papelera", Icon: Trash2 },
@@ -35,8 +36,24 @@ function Logo() {
   );
 }
 
+/**
+ * El menú resalta la página actual con usePathname. En rutas con parámetros
+ * desconocidos al compilar (/clientes/[id]) eso suspende, así que se envuelve
+ * en Suspense con el mismo menú sin resaltar como respaldo.
+ */
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<NavList pathname="" onNavigate={onNavigate} />}>
+      <CurrentNavLinks onNavigate={onNavigate} />
+    </Suspense>
+  );
+}
+
+function CurrentNavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return <NavList pathname={usePathname()} onNavigate={onNavigate} />;
+}
+
+function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { searches, savedKeys, tasks } = useData();
   const pending = tasks.filter((t) => ["overdue", "today"].includes(taskBucket(t))).length;
   const active = searches.filter((s) => s.status === "running" || s.status === "queued").length;

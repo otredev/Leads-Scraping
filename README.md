@@ -132,7 +132,9 @@ En **Ajustes → Claude (MCP)** tienes la dirección y los comandos listos para 
 | `update_lead` / `trash_leads` | Etapa, color, etiquetas, notas, "no contactar"; mover a la papelera |
 | `start_search` / `get_search` / `list_searches` | Lanzar búsquedas en Google Maps y seguir su progreso |
 | `list_results` / `save_results` | Ver lo encontrado y guardarlo en el CRM |
-| `list_tasks` / `create_task` / `update_task` / `complete_task` | Tareas de seguimiento (la fecha es opcional) |
+| `list_tasks` / `create_task` / `update_task` / `complete_task` | Tareas de leads, clientes o proyectos (la fecha es opcional) |
+| `list_clients` / `get_client` / `create_client` | Clientes (también convertir un lead) con el resumen de sus proyectos |
+| `create_project` / `update_project` | Proyectos: estado, hitos, pagos y horas |
 | `draft_message` / `log_contact` | Rellenar una plantilla de WhatsApp o email y registrar el contacto |
 | `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink y guardar su enlace |
 
@@ -147,6 +149,19 @@ En la ficha de cada lead, **Página web → Copiar para Claude** copia un encarg
 ### Instalar como app (PWA)
 
 Leads Scraping se puede instalar con su propio icono y ventana: en Chrome o Edge, con el icono de instalar de la barra de direcciones (o en Ajustes → Instalar la app). Instalada, los avisos de tareas salen como notificaciones del sistema y, si el servidor no está encendido, muestra una pantalla de "sin conexión" en lugar de un error. En el móvil solo se puede instalar cuando la app esté desplegada con HTTPS.
+
+### Clientes y proyectos
+
+La página **Clientes** gestiona el trabajo para tus clientes:
+
+- **Crear un cliente** a mano o **convertir un lead** (botón "Convertir en cliente" en su ficha, o "Desde un lead" al crear). Al convertirlo se copian sus datos, queda enlazado y el lead pasa a tu última etapa (normalmente "Clientes").
+- **Proyectos** por cliente, con estado (propuesta, en curso, en revisión, entregado, pausado, cancelado), fechas de inicio y entrega, y descripción.
+- **Cronograma**: hitos con fecha. Al marcarlos avanza el % del proyecto, y los retrasados salen en rojo. Aparecen también en el **Calendario** (con un rombo) y enlazan al proyecto.
+- **Tareas** del proyecto o generales del cliente: son las mismas tareas de siempre (fechas opcionales, avisos push, calendario).
+- **Presupuesto y pagos**: presupuesto, pagos con fecha y concepto, y lo pendiente de cobro.
+- **Horas**: registros con fecha y descripción (`1:30`, `1,5` o `90m`), total y coste si indicas un precio por hora.
+- La lista de clientes resume proyectos en marcha, avance, próxima entrega, retrasos y pendiente de cobro.
+- Cada hito y tarea tiene la marca **visible para el cliente** (el ojo). Hoy no cambia nada; servirá para el portal del cliente (siguiente fase), que solo mostrará lo marcado.
 
 ### Proveedores para completar datos
 
@@ -194,6 +209,7 @@ src/
 │   ├── notifier.ts          Interfaz de los canales de notificación
 │   ├── enricher.ts          Interfaz de los enriquecedores (completar datos)
 │   ├── socials.ts           Redes sociales reconocidas y normalización de perfiles
+│   ├── clients.ts           Clientes, proyectos, hitos, pagos, horas y sus cálculos
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -212,11 +228,12 @@ src/
 │   ├── notifications.ts     Instancia los canales y envía por todos
 │   ├── reminders.ts         Revisa cada minuto las tareas que vencen y avisa
 │   ├── enrich.ts            Trabajos de enriquecimiento en segundo plano
+│   ├── clients.ts           Validación y cambios de clientes y proyectos
 │   └── mcp/                 Servidor MCP para Claude (herramientas y acceso)
-├── app/api/                 REST: modules, searches, results, leads, enrich, tasks, notifications, export, stats, backup, settings, mcp
+├── app/api/                 REST: modules, searches, results, leads, clients, projects, enrich, tasks, notifications, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
-│   ├── pages/               Panel, Búsquedas, Resultados, Leads, Tareas, Calendario, Papelera, Ajustes
+│   ├── pages/               Panel, Búsquedas, Resultados, Leads, Clientes, Tareas, Calendario, Papelera, Ajustes
 │   ├── leads/               Tabla, lista, tablero, ficha, barra de acciones y filtros
 │   ├── settings/            Gestión de etapas y etiquetas
 │   ├── charts/              Gráficos ligeros en HTML/CSS (sin librerías)

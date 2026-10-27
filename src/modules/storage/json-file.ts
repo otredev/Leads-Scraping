@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { dedupeLeads, leadDedupeKey, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
 import { compareTasks } from "@/core/calendar";
+import { normalizeProject, type Client, type Project } from "@/core/clients";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 
@@ -33,6 +34,14 @@ class JsonFileStore implements LeadStore {
 
   private get settingsFile() {
     return path.join(this.dir, "settings.json");
+  }
+
+  private get clientsFile() {
+    return path.join(this.dir, "clients.json");
+  }
+
+  private get projectsFile() {
+    return path.join(this.dir, "projects.json");
   }
 
   private get metaFile() {
@@ -273,9 +282,16 @@ class JsonFileStore implements LeadStore {
 
   // ── Tareas ──
 
-  async listTasks(opts: { leadId?: string } = {}) {
+  async listTasks(opts: { leadId?: string; clientId?: string; projectId?: string } = {}) {
     const all = await this.read<Task[]>(this.tasksFile, []);
-    return all.filter((t) => !opts.leadId || t.leadId === opts.leadId).sort(compareTasks);
+    return all
+      .filter(
+        (t) =>
+          (!opts.leadId || t.leadId === opts.leadId) &&
+          (!opts.clientId || t.clientId === opts.clientId) &&
+          (!opts.projectId || t.projectId === opts.projectId),
+      )
+      .sort(compareTasks);
   }
 
   createTask(task: Task) {
@@ -314,6 +330,63 @@ class JsonFileStore implements LeadStore {
     return this.lock(() => this.write(this.settingsFile, settings));
   }
 
+  // ── Clientes y proyectos ──
+
+  async listClients() {
+    return (await this.read<Client[]>(this.clientsFile, [])).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+
+  async getClient(id: string) {
+    return (await this.read<Client[]>(this.clientsFile, [])).find((c) => c.id === id);
+  }
+
+  putClient(client: Client) {
+    return this.lock(async () => {
+      const all = await this.read<Client[]>(this.clientsFile, []);
+      const i = all.findIndex((c) => c.id === client.id);
+      if (i === -1) all.push(client);
+      else all[i] = client;
+      await this.write(this.clientsFile, all);
+    });
+  }
+
+  deleteClient(id: string) {
+    return this.lock(async () => {
+      const all = await this.read<Client[]>(this.clientsFile, []);
+      await this.write(this.clientsFile, all.filter((c) => c.id !== id));
+    });
+  }
+
+  async listProjects(opts: { clientId?: string } = {}) {
+    const all = await this.read<Project[]>(this.projectsFile, []);
+    return all
+      .filter((p) => !opts.clientId || p.clientId === opts.clientId)
+      .map(normalizeProject)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getProject(id: string) {
+    const p = (await this.read<Project[]>(this.projectsFile, [])).find((x) => x.id === id);
+    return p && normalizeProject(p);
+  }
+
+  putProject(project: Project) {
+    return this.lock(async () => {
+      const all = await this.read<Project[]>(this.projectsFile, []);
+      const i = all.findIndex((p) => p.id === project.id);
+      if (i === -1) all.push(project);
+      else all[i] = project;
+      await this.write(this.projectsFile, all);
+    });
+  }
+
+  deleteProject(id: string) {
+    return this.lock(async () => {
+      const all = await this.read<Project[]>(this.projectsFile, []);
+      await this.write(this.projectsFile, all.filter((p) => p.id !== id));
+    });
+  }
+
   // ── Datos internos de los módulos ──
 
   async getMeta<T>(key: string) {
@@ -349,6 +422,8 @@ class JsonFileStore implements LeadStore {
       leads: await this.readSaved(),
       settings: await this.getSettings(),
       tasks: await this.listTasks(),
+      clients: await this.listClients(),
+      projects: await this.listProjects(),
     };
   }
 
@@ -378,6 +453,9 @@ class JsonFileStore implements LeadStore {
         await this.write(this.tasksFile, [...all, ...backup.tasks!.filter((t) => !ids.has(t.id))]);
       });
     }
+    // Clientes y proyectos: solo se añaden los que no existan (por id).
+    for (const c of backup.clients ?? []) if (!(await this.getClient(c.id))) await this.putClient(c);
+    for (const p of backup.projects ?? []) if (!(await this.getProject(p.id))) await this.putProject(p);
     return summary;
   }
 }
