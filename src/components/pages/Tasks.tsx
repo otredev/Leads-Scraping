@@ -1,30 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
-import { Bell, BellOff, CalendarDays, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { useData, type TaskView } from "../data/DataProvider";
 import { TaskRow } from "../tasks/TaskParts";
+import { PushButton } from "../notifications/PushButton";
 import { Card, EmptyState, ListSkeleton, Loading, PageHeader } from "../ui";
-
-type Perm = "unsupported" | NotificationPermission;
-
-const permListeners = new Set<() => void>();
-function readPerm(): Perm {
-  return typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported";
-}
-
-function usePermission() {
-  return useSyncExternalStore(
-    (cb) => {
-      permListeners.add(cb);
-      return () => permListeners.delete(cb);
-    },
-    readPerm,
-    () => "default" as Perm,
-  );
-}
 
 const SECTIONS = [
   { id: "overdue", title: "Vencidas", empty: "Nada vencido." },
@@ -36,7 +19,6 @@ const SECTIONS = [
 /** Agenda: tareas de todos los leads agrupadas por cuándo vencen. */
 export function Tasks() {
   const { tasks, tasksLoaded } = useData();
-  const perm = usePermission();
   const [showDone, setShowDone] = useState(false);
   const loading = !tasksLoaded;
 
@@ -57,25 +39,7 @@ export function Tasks() {
             <Link href="/calendario" className="btn">
               <CalendarDays className="size-4" aria-hidden /> Ver calendario
             </Link>
-            {perm === "default" ? (
-              <button
-                className="btn"
-                onClick={async () => {
-                  await Notification.requestPermission();
-                  permListeners.forEach((l) => l());
-                }}
-              >
-                <Bell className="size-4" aria-hidden /> Activar avisos del navegador
-              </button>
-            ) : perm === "granted" ? (
-              <span className="badge border border-line text-fg-2">
-                <Bell className="size-3.5" aria-hidden /> Avisos activados
-              </span>
-            ) : perm === "denied" ? (
-              <span className="badge border border-line text-muted" title="Puedes permitirlas en la configuración del sitio del navegador">
-                <BellOff className="size-3.5" aria-hidden /> Avisos bloqueados en el navegador
-              </span>
-            ) : null}
+            <PushButton />
           </>
         }
       />

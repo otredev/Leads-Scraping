@@ -35,6 +35,10 @@ class JsonFileStore implements LeadStore {
     return path.join(this.dir, "settings.json");
   }
 
+  private get metaFile() {
+    return path.join(this.dir, "meta.json");
+  }
+
   private get savedFile() {
     return path.join(this.dir, "saved-leads.json");
   }
@@ -308,6 +312,27 @@ class JsonFileStore implements LeadStore {
 
   saveSettings(settings: CrmSettings) {
     return this.lock(() => this.write(this.settingsFile, settings));
+  }
+
+  // ── Datos internos de los módulos ──
+
+  async getMeta<T>(key: string) {
+    const all = await this.read<Record<string, unknown>>(this.metaFile, {});
+    return all[key] as T | undefined;
+  }
+
+  async setMeta(key: string, value: unknown) {
+    await this.updateMeta(key, () => value);
+  }
+
+  updateMeta<T>(key: string, fn: (current: T | undefined) => T) {
+    return this.lock(async () => {
+      const all = await this.read<Record<string, unknown>>(this.metaFile, {});
+      const next = fn(all[key] as T | undefined);
+      all[key] = next;
+      await this.write(this.metaFile, all);
+      return next;
+    });
   }
 
   // ── Copia de seguridad ──

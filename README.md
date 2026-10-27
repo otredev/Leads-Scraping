@@ -52,6 +52,9 @@ Las colecciones (`searches`, `results`, `leads`, `settings`) y sus índices se c
 | `DATA_DIR` | Carpeta del almacenamiento `json-file` | `./data` |
 | `DEFAULT_COUNTRY` | País para teléfonos sin prefijo (ISO, 2 letras) | `ES` |
 | `TRASH_DAYS` | Días que un lead pasa en la papelera | `30` |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Claves de las notificaciones push (opcional: si no están, se generan y guardan solas) | — |
+| `VAPID_SUBJECT` | Contacto para los servicios push (`mailto:` o `https:`) | `mailto:avisos@leads-scraping.example` |
+| `REMINDERS` | `off` desactiva los recordatorios en segundo plano | activados |
 | `MCP_TOKEN` | Token para el servidor MCP. Sin él, el MCP solo acepta conexiones desde este equipo | — |
 
 En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a gosom. Si está en rojo, gosom no está levantado.
@@ -96,7 +99,7 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 
 - **Contactar** (en la ficha del lead): abre WhatsApp o tu correo con una plantilla ya rellenada, llama o copia el teléfono/email. Cada acción queda en el *historial de contacto* y actualiza la columna "Último contacto". Los leads marcados como "no contactar" tienen los botones desactivados.
 - **Plantillas** (Ajustes → Plantillas de mensaje): textos de WhatsApp o email con variables `{nombre}`, `{categoria}`, `{direccion}`, `{telefono}`, `{email}`, `{web}`, `{valoracion}`, `{resenas}` y `{etapa}`, con vista previa.
-- **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La fecha es opcional: puedes ponerla, cambiarla o quitarla después desde el menú de la tarea. La página **Tareas** las agrupa en vencidas, hoy, próximas y sin fecha, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y, si lo permites, con notificaciones del navegador (solo mientras la app esté abierta). Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
+- **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La fecha es opcional: puedes ponerla, cambiarla o quitarla después desde el menú de la tarea. La página **Tareas** las agrupa en vencidas, hoy, próximas y sin fecha, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y con **notificaciones push** (ver abajo), también con la app cerrada. Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
 - **Calendario**: las tareas por mes o por semana, con el color de la etapa de cada lead. Arrastra una tarea a otro día para cambiarla de fecha (conserva la hora), arrastra las "sin fecha" a un día para programarlas, y crea tareas directamente en un día eligiendo el lead.
 - **Mapa**: vista de los leads filtrados sobre OpenStreetMap (Leaflet, gratis), coloreados por etapa. Útil para planificar visitas por zona. Los leads importados sin coordenadas no aparecen.
 - **Panel**: embudo de conversión por etapa (% contactados y % en la última etapa) y las tareas para hoy.
@@ -142,6 +145,15 @@ En la ficha de cada lead, **Página web → Copiar para Claude** copia un encarg
 
 Leads Scraping se puede instalar con su propio icono y ventana: en Chrome o Edge, con el icono de instalar de la barra de direcciones (o en Ajustes → Instalar la app). Instalada, los avisos de tareas salen como notificaciones del sistema y, si el servidor no está encendido, muestra una pantalla de "sin conexión" en lugar de un error. En el móvil solo se puede instalar cuando la app esté desplegada con HTTPS.
 
+### Notificaciones push
+
+En **Ajustes → Notificaciones push** (o en Tareas → "Activar notificaciones push") activa los avisos en cada dispositivo. A partir de ahí, el servidor revisa cada minuto las tareas y, cuando vence una, envía una notificación del sistema a todos los dispositivos suscritos, aunque la app esté cerrada. Al pulsarla se abre el lead. Desde Ajustes puedes enviar una prueba y quitar dispositivos.
+
+- Es gratis: usa Web Push (los servicios push de Chrome, Edge, Firefox y Safari) con claves VAPID que se generan solas la primera vez y se guardan en la base de datos.
+- **El servidor tiene que estar encendido** (`npm run dev` o `npm start`). Solo avisa de tareas que vencieron hace menos de una hora, así que al encenderlo no recibirás avisos antiguos. Si cambias la fecha de una tarea, volverá a avisar.
+- En el ordenador funciona en local (`localhost`). En el móvil hace falta la app desplegada con HTTPS; en iPhone/iPad, además, instalada en la pantalla de inicio (iOS 16.4 o posterior). En Brave hay que activar "Usar los servicios de Google para mensajería push".
+- La hora del aviso usa la zona horaria del servidor. Si lo despliegas, define `TZ` (p. ej. `TZ=Europe/Madrid`).
+
 ---
 
 ## Arquitectura
@@ -162,6 +174,7 @@ src/
 │   ├── templates.ts         Plantillas de mensaje, enlaces de WhatsApp y email
 │   ├── calendar.ts          Tareas: agrupación, Google Calendar e .ics
 │   ├── otrelink.ts          Brief para crear la página del negocio en Otrelink
+│   ├── notifier.ts          Interfaz de los canales de notificación
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -169,14 +182,17 @@ src/
 │   ├── sources/             google-maps
 │   ├── providers/           gosom/, demo/
 │   ├── exporters/           csv, json
-│   └── storage/             json-file, mongodb
+│   ├── storage/             json-file, mongodb
+│   └── notifiers/           web-push
 ├── server/
 │   ├── registry.ts          Búsqueda de módulos e instancia del almacenamiento
 │   ├── crm.ts               Guardar resultados como leads, papelera
 │   ├── runner.ts            Ejecuta búsquedas en segundo plano, guarda, cancela y reanuda
 │   ├── tasks.ts             Tareas por lead
+│   ├── notifications.ts     Instancia los canales y envía por todos
+│   ├── reminders.ts         Revisa cada minuto las tareas que vencen y avisa
 │   └── mcp/                 Servidor MCP para Claude (herramientas y acceso)
-├── app/api/                 REST: modules, searches, results, leads, tasks, export, stats, backup, settings, mcp
+├── app/api/                 REST: modules, searches, results, leads, tasks, notifications, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
 │   ├── pages/               Panel, Búsquedas, Resultados, Leads, Tareas, Calendario, Papelera, Ajustes
@@ -187,7 +203,8 @@ src/
 │   └── data/                Estado compartido (módulos y búsquedas)
 ├── lib/theme.ts             Lógica del tema claro/oscuro
 └── lib/pwa.ts               Service worker, instalación y notificaciones
-public/sw.js                 Service worker (pantalla sin conexión, avisos)
+├── instrumentation.ts       Arranca los recordatorios al iniciar el servidor
+public/sw.js                 Service worker (pantalla sin conexión, avisos y push)
 ```
 
 **Fuente y proveedor no son lo mismo.** Una *fuente* es de dónde salen los datos (Google Maps, Yelp, Páginas Amarillas…). Un *proveedor* es la herramienta que los extrae (gosom, Apify, la API oficial de Google…). Una fuente puede tener varios proveedores, y todos devuelven el mismo `Lead`.
@@ -263,6 +280,10 @@ Crea `src/modules/exporters/xlsx.ts` con `defineExporter({ id, label, extension,
 
 Implementa `LeadStore` (`src/core/storage.ts`) en `src/modules/storage/`, regístralo en `storages` y selecciónalo con `STORAGE=<id>` en `.env.local`. Hay dos implementaciones de referencia: `mongodb.ts` y `json-file.ts`. La copia de seguridad y la importación funcionan entre cualquiera de ellas.
 
+### Otro canal de notificación (Telegram, email, Slack…)
+
+Crea un módulo en `src/modules/notifiers/` con `defineNotifier` (`src/core/notifier.ts`): `send(mensaje)` para entregar el aviso, `subscribe`/`unsubscribe`/`listSubscribers` para sus destinatarios y `health()`. Para guardar claves o destinatarios recibe `getMeta`/`setMeta`/`updateMeta`, que funcionan con cualquier almacenamiento. Regístralo en `notifiers` (`src/modules/index.ts`) y los recordatorios de tareas saldrán también por él. `web-push` es la implementación de referencia.
+
 ## Despliegue futuro
 
 La app está pensada para uso local. Para desplegarla habría que cambiar dos piezas, sin tocar los proveedores:
@@ -270,6 +291,7 @@ La app está pensada para uso local. Para desplegarla habría que cambiar dos pi
 - **Almacenamiento:** ya está resuelto con MongoDB Atlas (en serverless el disco no persiste, así que `json-file` no sirve ahí).
 - **Ejecución en segundo plano:** el `runner` vive en el proceso de Next.js, lo que funciona en un servidor tradicional (VPS, Railway, Fly.io, Docker) pero no en serverless. En ese caso habría que moverlo a una cola o worker.
 - **gosom** necesita una máquina con Docker: el mismo VPS o un servicio aparte.
+- **Recordatorios push:** igual que el `runner`, viven en el proceso de Next.js (servidor tradicional). En serverless habría que llamar a la revisión de tareas con un cron.
 
 ## Aviso
 
@@ -278,49 +300,16 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 
 # Pendientes: 
 
-## Fase 1 · Base de datos
-- [x] Conectarlo a una base de datos de mongo db y poder guardar un fila o todos los datos visibles de un filtro. 
-- [x] Historial de busquedas guardadas
-- [x] Normalizar teléfonos: pasarlos a formato internacional (con libphonenumber) para que WhatsApp funcione siempre.
-- [x] Papelera para recuperar leads borrados. Que se eliminen por tiempo
-- [x] Copia de seguridad / exportar el CRM completo.
-
-## Fase 2 · CRM: organizar leads
-- [x] Opcion de recategorizar ejemplo (Desinteresados, Leads, Interesados, Clientes) En una pagina donde pueda cambiar de vistas, a listas, columnas como tablero como trello.
-- [x] Poder agregar notas, a cada lead.
-- [x] Opcion de crear y agregar tags a leads.
-- [x] Opcion de cambiar colores a leads. 
-- [x] Tags automaticos: marcar automáticamente “sin web”, “sin contacto” o “valoración baja”.
-- [x] Opcion de establecer filtros predeterminados, que al restablecer queden fijos.
-- [x] Acciones masivas: seleccionar varios leads y cambiar etapa, tag o borrar a la vez.
-- [x] Puntuación de leads según datos de contacto, valoración y reseñas.
-- [x] Poder personalizar el orden de las columnas de las tablas de lead.
-- [x] Lista de "no contactar" para cumplir RGPD. De personas que piden no volver a contactar
-
-## Fase 3 · Captura de datos
-- [x] En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
-- [x] Importar CSV
-- [x] Volver a extraer los datos de un lead guardado para refrescarlo.
-
-## Fase 4 · Seguimiento y contacto
-- [x] Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
-- [x] Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
-- [x] Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
-- [x] Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
-- [x] Embudo de conversión por etapa en el panel.
-
-## Fase 5 · Integración con Claude
-- [x] Crear MCP para manejarlo desde claude
-- [x] Copiar datos de lead para crear con MCP de claude la pag en otrelink
-- [x] Convertir la app en pwa
-
-
 # Otros:
-- Pagina de solo clientes para administrar las tareas y proyectos desde ahi.
-- Buscar mas proveedores para cuando le de actualizar pueda usar otro proveedor que me pueda complementar datos como por ej los socials
-- Crear calendario interno
-- Notificaciones push
+
+
 - Crear pagina de documentacion
+- Crear paginas legales, politicas, privacidad...
+
+- Pagina de administracion y gestion de clientes para las tareas y proyectos desde ahi. Que se pueda crear un cliente manual.
+- Vista para el cliente pueda ver el avance del proyecto, tareas pendientes y cronogramas de entrega.
+- Chat de cliente-admin integrado en la app
+
 
 ### Futuro:
 Login y multiusuario

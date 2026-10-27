@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { BellRing, X } from "lucide-react";
 import { useData, type TaskView } from "../data/DataProvider";
 import { formatDue } from "./TaskParts";
-import { showNotification } from "@/lib/pwa";
+import { getPushSubscription, showNotification } from "@/lib/pwa";
 
 const KEY = "notified-tasks";
 const WINDOW_MS = 60 * 60_000; // solo avisa de tareas vencidas en la última hora
@@ -36,6 +36,7 @@ export function TaskNotifier() {
   const [toasts, setToasts] = useState<TaskView[]>([]);
 
   useEffect(() => {
+    let pushActive = false;
     const check = () => {
       const now = Date.now();
       const notified = readNotified();
@@ -47,16 +48,23 @@ export function TaskNotifier() {
       if (!due.length) return;
       for (const t of due) {
         notified.add(t.id);
-        void showNotification(t.title, {
-          body: `${t.leadName} · ${formatDue(t.dueAt!)}`,
-          tag: t.id,
-          url: t.leadExists ? `/leads?lead=${t.leadId}` : "/tareas",
-        });
+        // Con push activo en este navegador, el servidor ya envía la notificación del sistema.
+        if (!pushActive) {
+          void showNotification(t.title, {
+            body: `${t.leadName} · ${formatDue(t.dueAt!)}`,
+            tag: t.id,
+            url: t.leadExists ? `/leads?lead=${t.leadId}` : "/tareas",
+          });
+        }
       }
       saveNotified(notified);
       setToasts((list) => [...due, ...list].slice(0, 4));
     };
-    check();
+    // Primero mira si este navegador tiene push (para no duplicar avisos).
+    getPushSubscription()
+      .then((sub) => (pushActive = Boolean(sub)))
+      .catch(() => undefined)
+      .finally(check);
     const timer = setInterval(check, 15_000);
     return () => clearInterval(timer);
   }, [tasks]);

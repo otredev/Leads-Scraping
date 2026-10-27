@@ -99,6 +99,8 @@ const searches = async () => (await db()).collection<Doc<Search>>("searches");
 const results = async () => (await db()).collection<ResultDoc>("results");
 const leads = async () => (await db()).collection<SavedDoc>("leads");
 const tasks = async () => (await db()).collection<Doc<Task>>("tasks");
+let metaQueue: Promise<unknown> = Promise.resolve();
+const metaCol = async () => (await db()).collection<{ _id: string; value: unknown }>("meta");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
 
 function fromDoc<T>(doc: Doc<T> | null | undefined): T | undefined {
@@ -385,6 +387,29 @@ class MongoStore implements LeadStore {
 
   async saveSettings(settings: CrmSettings) {
     await (await settingsCol()).replaceOne({ _id: "crm" }, { ...settings }, { upsert: true });
+  }
+
+  // ── Datos internos de los módulos ──
+
+  async getMeta<T>(key: string) {
+    const doc = await (await metaCol()).findOne({ _id: key });
+    return doc?.value as T | undefined;
+  }
+
+  async setMeta(key: string, value: unknown) {
+    await (await metaCol()).replaceOne({ _id: key }, { value }, { upsert: true });
+  }
+
+  /** Lectura-modificación-escritura serializada en este proceso (suficiente para una sola instancia). */
+  updateMeta<T>(key: string, fn: (current: T | undefined) => T): Promise<T> {
+    const run = async () => {
+      const next = fn(await this.getMeta<T>(key));
+      await this.setMeta(key, next);
+      return next;
+    };
+    const p = metaQueue.then(run, run);
+    metaQueue = p.catch(() => undefined);
+    return p;
   }
 
   // ── Copia de seguridad ──

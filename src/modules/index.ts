@@ -10,6 +10,7 @@
 import type { SourceDefinition, LeadProvider } from "@/core/provider";
 import type { Exporter } from "@/core/exporter";
 import type { StorageModule } from "@/core/storage";
+import type { NotifierModule } from "@/core/notifier";
 
 // Fuentes
 import googleMaps from "./sources/google-maps";
@@ -26,6 +27,9 @@ import json from "./exporters/json";
 import jsonFile from "./storage/json-file";
 import mongodb from "./storage/mongodb";
 
+// Notificaciones
+import webPush from "./notifiers/web-push";
+
 export const sources: SourceDefinition[] = [googleMaps];
 
 /** El primero es el que aparece seleccionado por defecto. */
@@ -38,3 +42,6 @@ export const exporters: Exporter[] = [csv, json];
  * existe MONGODB_URI y, si no, ficheros JSON locales.
  */
 export const storages: StorageModule[] = [jsonFile, mongodb];
+
+/** Canales de notificación: todos los registrados reciben los avisos de tareas. */
+export const notifiers: NotifierModule[] = [webPush];

@@ -7,6 +7,7 @@ import { api, useData } from "../data/DataProvider";
 import { CrmSettingsCard } from "../settings/CrmSettingsCard";
 import { TemplatesCard } from "../settings/TemplatesCard";
 import { AppCard, ClaudeCard } from "../settings/ClaudeCard";
+import { NotificationsCard } from "../settings/NotificationsCard";
 import { Card, Loading, Notice, PageHeader, Skeleton } from "../ui";
 
 function Code({ children }: { children: React.ReactNode }) {
@@ -229,9 +230,12 @@ export function Settings() {
             <SkeletonCards titles={["Etapas y etiquetas"]} />
           )}
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
             <ClaudeCard mcp={modules.mcp} />
-            <AppCard />
+            <div className="flex flex-col gap-5">
+              <NotificationsCard />
+              <AppCard />
+            </div>
           </div>
 
           <Card title="Proveedores" description="Herramientas que extraen los datos" bodyClassName="px-5 pb-5">

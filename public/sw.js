@@ -3,10 +3,11 @@
  * - Navegación: siempre red primero (los datos viven en el servidor); si no hay
  *   conexión con la app, muestra /offline.html.
  * - Iconos y página offline: en caché.
- * - Avisos de tareas: notificaciones del sistema y clic para abrir el lead.
+ * - Avisos de tareas: notificaciones del sistema (también push desde el
+ *   servidor, con la app cerrada) y clic para abrir el lead.
  * La API nunca se cachea.
  */
-const CACHE = "leads-shell-v1";
+const CACHE = "leads-shell-v2";
 const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/badge-96.png"];
 
 self.addEventListener("install", (event) => {
@@ -35,6 +36,26 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/icons/")) {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));
   }
+});
+
+// Push del servidor (recordatorios de tareas, pruebas…).
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: event.data ? event.data.text() : "" };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Leads Scraping", {
+      body: data.body || "",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png",
+      tag: data.tag,
+      renotify: Boolean(data.tag),
+      data: { url: data.url || "/tareas" },
+    }),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

@@ -92,6 +92,8 @@ export interface Task {
   done: boolean;
   doneAt?: string;
   createdAt: string;
+  /** Cuándo se envió su aviso por notificación push (para no repetirlo). */
+  notifiedAt?: string;
 }
 
 // ── Plantillas de mensaje ──

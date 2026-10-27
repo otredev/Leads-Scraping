@@ -82,6 +82,13 @@ export interface LeadStore {
   getSettings(): Promise<CrmSettings>;
   saveSettings(settings: CrmSettings): Promise<void>;
 
+  // ── Datos internos de los módulos (claves, suscripciones…) ──
+  /** Valor guardado por un módulo; no forma parte de la copia de seguridad. */
+  getMeta<T>(key: string): Promise<T | undefined>;
+  setMeta(key: string, value: unknown): Promise<void>;
+  /** Lee, modifica y guarda un valor de forma atómica respecto a esta app. */
+  updateMeta<T>(key: string, fn: (current: T | undefined) => T): Promise<T>;
+
   // ── Copia de seguridad ──
   exportAll(): Promise<Backup>;
   /** Añade lo que no exista (no sobrescribe nada). */

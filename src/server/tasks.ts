@@ -42,7 +42,10 @@ export async function updateTask(id: string, raw: unknown) {
   const patch: Partial<Task> = {};
   if (r.title !== undefined) patch.title = cleanTitle(r.title);
   // null o "" quita la fecha (queda undefined y el almacenamiento la borra).
-  if (r.dueAt !== undefined) patch.dueAt = cleanDate(r.dueAt);
+  if (r.dueAt !== undefined) {
+    patch.dueAt = cleanDate(r.dueAt);
+    patch.notifiedAt = undefined; // nueva fecha: volverá a avisar
+  }
   const changes = Object.keys(r).filter((k) => ["title", "dueAt", "done"].includes(k));
   if (typeof r.done === "boolean") {
     patch.done = r.done;
