@@ -39,6 +39,12 @@ export interface LeadProvider {
   sourceId: string;
   /** Opciones propias, la UI genera el formulario a partir de aquí. */
   options: OptionField[];
+  /**
+   * Acepta URLs de Google Maps como consulta (búsquedas, fichas, enlaces cortos).
+   * Si no, la app le pasa el texto que contenga la URL. También habilita
+   * "volver a extraer" leads guardados.
+   */
+  acceptsMapsUrls?: boolean;
   /** Comprueba si el proveedor está listo (servicio levantado, API key, etc.). */
   health(): Promise<HealthStatus>;
   /**

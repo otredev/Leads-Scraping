@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Play } from "lucide-react";
+import { ChevronDown, Link2, Play } from "lucide-react";
+import { parseMapsUrl } from "@/core/mapsUrl";
+import { COUNTRIES } from "@/core/countries";
 import { defaultOptions, type OptionValues } from "@/core/options";
 import type { Search } from "@/core/search";
 import { OptionInput } from "./OptionInput";
@@ -11,26 +13,6 @@ interface Props {
   modules: ModulesInfo;
   onCreated(search: Search): void;
 }
-
-/** Países habituales; el número se interpreta con este prefijo si no trae uno. */
-const COUNTRIES: [string, string][] = [
-  ["ES", "España (+34)"],
-  ["MX", "México (+52)"],
-  ["AR", "Argentina (+54)"],
-  ["CO", "Colombia (+57)"],
-  ["CL", "Chile (+56)"],
-  ["PE", "Perú (+51)"],
-  ["VE", "Venezuela (+58)"],
-  ["EC", "Ecuador (+593)"],
-  ["UY", "Uruguay (+598)"],
-  ["DO", "Rep. Dominicana (+1)"],
-  ["US", "Estados Unidos (+1)"],
-  ["PT", "Portugal (+351)"],
-  ["FR", "Francia (+33)"],
-  ["IT", "Italia (+39)"],
-  ["DE", "Alemania (+49)"],
-  ["GB", "Reino Unido (+44)"],
-];
 
 export function NewSearchForm({ modules, onCreated }: Props) {
   const [providerId, setProviderId] = useState(modules.providers[0]?.id ?? "");
@@ -45,6 +27,10 @@ export function NewSearchForm({ modules, onCreated }: Props) {
   const [error, setError] = useState<string>();
 
   const values = provider ? { ...defaultOptions(provider.options), ...options[provider.id] } : {};
+  const urls = queries
+    .split("\n")
+    .map((l) => parseMapsUrl(l))
+    .filter((u): u is NonNullable<typeof u> => Boolean(u));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,10 +73,30 @@ export function NewSearchForm({ modules, onCreated }: Props) {
           className="input resize-y leading-relaxed"
           value={queries}
           onChange={(e) => setQueries(e.target.value)}
-          placeholder={"clínicas dentales en Valencia\nfisioterapeutas en Madrid centro"}
+          placeholder={"clínicas dentales en Valencia\nhttps://www.google.com/maps/search/fisioterapeutas/@40.41,-3.70,14z"}
           required
         />
-        <p className="hint">Una búsqueda por línea, igual que la escribirías en Google Maps.</p>
+        <p className="hint">
+          Una búsqueda por línea, como en Google Maps. También puedes pegar la URL de Google Maps con la zona y los filtros que
+          ya tengas puestos.
+        </p>
+        {urls.length > 0 && (
+          <ul className="flex flex-col gap-1.5" aria-label="Enlaces de Google Maps detectados">
+            {urls.map((u, i) => (
+              <li key={i} className="flex items-start gap-2 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-[12.5px]">
+                <Link2 className="mt-0.5 size-3.5 shrink-0 text-muted" aria-hidden />
+                <span className="min-w-0">
+                  <span className="block font-medium text-fg">{u.label}</span>
+                  {provider && !provider.acceptsMapsUrls && (
+                    <span className="block text-muted">
+                      {u.query ? `Este proveedor buscará el texto “${u.query}”, sin la zona ni los filtros.` : "Este proveedor no puede usar este enlace."}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">

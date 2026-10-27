@@ -12,6 +12,8 @@ export interface SearchParams {
   limit?: number;
   /** Opciones propias del proveedor (ver `LeadProvider.options`). */
   options: OptionValues;
+  /** Búsqueda creada para volver a extraer estos leads guardados. */
+  refreshLeadIds?: string[];
 }
 
 export type SearchStatus = "queued" | "running" | "completed" | "failed" | "cancelled";

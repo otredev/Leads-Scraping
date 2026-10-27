@@ -102,6 +102,9 @@ export function Searches() {
                           <Link href={`/resultados?search=${s.id}`} className="block truncate font-medium text-fg underline-offset-2 hover:underline" title={s.params.queries.join("\n")}>
                             {s.name}
                           </Link>
+                          {s.params.refreshLeadIds && (
+                            <span className="badge mt-1 border border-line text-muted">Actualización de {s.params.refreshLeadIds.length} leads</span>
+                          )}
                           {active && (
                             <div className="mt-2 flex flex-col gap-1.5">
                               <ProgressBar percent={s.progress?.percent} />

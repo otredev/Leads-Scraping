@@ -5,12 +5,12 @@ import type { RunContext } from "@/core/provider";
 import type { Search, SearchParams } from "@/core/search";
 import { resolveOptions } from "@/core/options";
 import { withNormalizedPhone } from "@/core/phone";
+import { describeQueries, parseMapsUrl } from "@/core/mapsUrl";
+import { defaultCountry } from "./config";
 import { getProvider, getStore } from "./registry";
+import { applyRefresh } from "./refresh";
 
-/** País por defecto para teléfonos sin prefijo internacional. */
-export function defaultCountry() {
-  return (process.env.DEFAULT_COUNTRY || "ES").toUpperCase();
-}
+export { defaultCountry };
 
 /**
  * Ejecuta búsquedas en segundo plano dentro del propio proceso de Next.js.
@@ -32,14 +32,27 @@ export interface StartSearchInput {
   country?: string;
   limit?: number;
   options?: unknown;
+  /** Si es una actualización de leads guardados, sus ids. */
+  refreshLeadIds?: string[];
 }
 
 export async function startSearch(input: StartSearchInput): Promise<Search> {
   const provider = getProvider(input.providerId);
   if (!provider) throw new Error(`Proveedor desconocido: ${input.providerId}`);
 
-  const queries = input.queries.map((q) => q.trim()).filter(Boolean);
+  let queries = input.queries.map((q) => q.trim()).filter(Boolean);
   if (queries.length === 0) throw new Error("Escribe al menos una búsqueda.");
+
+  // URLs de Google Maps: se pasan tal cual a los proveedores que las aceptan;
+  // al resto se les da el texto que contiene la URL.
+  if (!provider.acceptsMapsUrls) {
+    queries = queries.map((q) => {
+      const info = parseMapsUrl(q);
+      if (!info) return q;
+      if (!info.query) throw new Error(`"${provider.name}" no acepta enlaces de Google Maps sin texto de búsqueda. Usa gosom o escribe la búsqueda.`);
+      return info.query;
+    });
+  }
 
   const lang = (input.lang || "es").trim().toLowerCase();
   if (!/^[a-z]{2}$/.test(lang)) throw new Error("El idioma debe ser un código de 2 letras (es, en…).");
@@ -55,11 +68,12 @@ export async function startSearch(input: StartSearchInput): Promise<Search> {
     country,
     limit,
     options: resolveOptions(provider.options, input.options),
+    ...(input.refreshLeadIds?.length ? { refreshLeadIds: input.refreshLeadIds } : {}),
   };
   const now = new Date().toISOString();
   const search: Search = {
     id: randomUUID(),
-    name: input.name?.trim() || queries.join(", "),
+    name: input.name?.trim() || describeQueries(input.queries.map((q) => q.trim()).filter(Boolean)).slice(0, 160),
     providerId: provider.id,
     sourceId: provider.sourceId,
     params,
@@ -124,9 +138,14 @@ async function execute(search: Search): Promise<void> {
   await store.updateSearch(search.id, { status: "running", error: undefined });
   try {
     await provider.run(search.params, ctx);
+    let message = `${leadCount} ${leadCount === 1 ? "resultado" : "resultados"}`;
+    if (search.params.refreshLeadIds?.length) {
+      const r = await applyRefresh(search.id, search.params.refreshLeadIds);
+      message = `${r.updated} de ${r.total} leads actualizados`;
+    }
     await store.updateSearch(search.id, {
       status: "completed",
-      progress: { message: `${leadCount} leads guardados`, percent: 100 },
+      progress: { message, percent: 100 },
       finishedAt: new Date().toISOString(),
     });
   } catch (err) {
@@ -204,5 +223,6 @@ export async function rerunSearch(id: string): Promise<Search> {
     country: prev.params.country,
     limit: prev.params.limit,
     options: prev.params.options,
+    refreshLeadIds: prev.params.refreshLeadIds,
   });
 }

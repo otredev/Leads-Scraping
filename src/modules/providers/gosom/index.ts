@@ -31,6 +31,7 @@ export default defineProvider({
   description:
     "Scraper open source que navega Google Maps con un navegador automatizado. Gratis, sin límites de volumen. Necesita el servicio de gosom levantado.",
   sourceId: "google-maps",
+  acceptsMapsUrls: true,
   options: [
     {
       key: "depth",

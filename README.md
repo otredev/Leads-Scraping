@@ -68,6 +68,8 @@ En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a go
 - **Puntuación (0–100):** según datos de contacto, valoración y nº de reseñas. Columna ordenable y filtro "Puntuación 40+/60+/80+". La fórmula está en `src/core/score.ts`.
 - **Acciones masivas:** selecciona filas (o "todos los filtrados") y cambia etapa, añade/quita etiquetas, color, "no contactar" o envía a la papelera. En Resultados, guarda la selección.
 - **No contactar (RGPD):** marca con motivo a quien pide no ser contactado. Se ocultan por defecto (y por tanto no se exportan) y se avisa en Resultados si vuelve a aparecer.
+- **Importar CSV:** en Leads → "Importar CSV". Detecta solo las columnas habituales (también los CSV exportados por la app), permite corregir el mapeo, elegir etapa, etiquetas y país de los teléfonos. Las filas repetidas se combinan y los negocios que ya tienes solo actualizan sus datos.
+- **Volver a extraer datos:** desde la ficha de un lead o con varios seleccionados ("Actualizar datos"). Lanza una búsqueda con la URL de su ficha (o nombre + dirección) y al terminar refresca teléfono, web, email, valoración, horario y reseñas sin tocar etapa, etiquetas ni notas.
 - **Filtros predeterminados y columnas:** "Fijar como predeterminados" guarda los filtros y el orden actuales; "Restablecer" vuelve a ellos. El orden y la visibilidad de columnas se guardan solos (menú Columnas).
 - **Papelera:** los leads borrados se pueden restaurar; se eliminan solos a los 30 días (`TRASH_DAYS`).
 - **Ajustes:** estado de la base de datos, **copia de seguridad** (descargar / restaurar JSON), importación de datos locales y módulos conectados.
@@ -81,7 +83,7 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 
 ## Uso
 
-1. Escribe una búsqueda por línea, como en Google Maps (`dentistas en Valencia`).
+1. Escribe una búsqueda por línea, como en Google Maps (`dentistas en Valencia`), o **pega la URL de Google Maps** con la zona y los filtros que ya tengas puestos (búsquedas, fichas de negocio y enlaces cortos `maps.app.goo.gl`). gosom las usa tal cual; los proveedores que no aceptan URLs reciben el texto que contenga.
 2. En "Opciones avanzadas" ajusta idioma, país de los teléfonos, límite de resultados, profundidad, tiempo máximo, emails y reseñas ampliadas.
 3. Al terminar, en **Resultados** filtra (texto, categoría, valoración, nº de reseñas, con email/teléfono/web), ordena por cualquier columna haciendo clic en su cabecera y despliega una fila para ver el horario y las reseñas.
 4. Guarda los que te interesen (uno a uno o "Guardar N visibles") y trabájalos en **Leads**.
@@ -240,9 +242,9 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 - [x] Lista de "no contactar" para cumplir RGPD. De personas que piden no volver a contactar
 
 ## Fase 3 · Captura de datos
-- [ ] En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
-- [ ] Importar CSV
-- [ ] Volver a extraer los datos de un lead guardado para refrescarlo.
+- [x] En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
+- [x] Importar CSV
+- [x] Volver a extraer los datos de un lead guardado para refrescarlo.
 
 ## Fase 4 · Seguimiento y contacto
 - [ ] Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento

@@ -7,6 +7,7 @@ export interface ProviderInfo {
   description: string;
   sourceId: string;
   options: OptionField[];
+  acceptsMapsUrls?: boolean;
   health: HealthStatus;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, Trash2, X } from "lucide-react";
+import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Trash2, X } from "lucide-react";
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
@@ -31,6 +31,7 @@ export function LeadDrawer({
   onChange,
   onTrash,
   onCreateTag,
+  onRefresh,
 }: {
   initial: SavedLead;
   settings: CrmSettings;
@@ -38,6 +39,7 @@ export function LeadDrawer({
   onChange(lead: SavedLead): void;
   onTrash(id: string): Promise<void>;
   onCreateTag(name: string): Promise<Tag>;
+  onRefresh(): Promise<void>;
 }) {
   const [lead, setLead] = useState(initial);
   const [error, setError] = useState<string>();
@@ -46,6 +48,7 @@ export function LeadDrawer({
   const [editing, setEditing] = useState<{ id: string; text: string }>();
   const [reason, setReason] = useState("");
   const [loadingFresh, setLoadingFresh] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   // Datos frescos del servidor y foco inicial.
@@ -342,14 +345,33 @@ export function LeadDrawer({
           <HoursAndReviews lead={lead} columns={false} />
         </section>
 
-        <footer className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line px-5 py-4 text-xs text-muted">
+        <footer className="mt-auto flex flex-col gap-3 border-t border-line px-5 py-4 text-xs text-muted">
           <span>
-            Guardado el {new Date(lead.savedAt).toLocaleDateString("es")} · {lead.searchIds.length}{" "}
-            {lead.searchIds.length === 1 ? "búsqueda" : "búsquedas"}
+            {lead.providerId === "csv" ? "Importado" : "Guardado"} el {new Date(lead.savedAt).toLocaleDateString("es")}
+            {lead.updatedAt && lead.updatedAt.slice(0, 10) !== lead.savedAt.slice(0, 10)
+              ? ` · actualizado el ${new Date(lead.updatedAt).toLocaleDateString("es")}`
+              : ""}
           </span>
-          <button className="btn btn-sm text-danger" disabled={busy} onClick={() => void onTrash(lead.id)}>
-            <Trash2 className="size-3.5" aria-hidden /> Mover a la papelera
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="btn btn-sm"
+              disabled={busy || refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try {
+                  await onRefresh();
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              title="Lanza una búsqueda de su ficha en Google Maps y actualiza teléfono, web, valoración, horario y reseñas"
+            >
+              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden /> Volver a extraer datos
+            </button>
+            <button className="btn btn-sm text-danger" disabled={busy} onClick={() => void onTrash(lead.id)}>
+              <Trash2 className="size-3.5" aria-hidden /> Mover a la papelera
+            </button>
+          </div>
         </footer>
       </aside>
     </div>

@@ -13,8 +13,12 @@ import {
   type Tag,
 } from "@/core/crm";
 import { cleanFilters } from "@/core/query";
-import { getStore } from "./registry";
-import { defaultCountry } from "./runner";
+import { getProvider, getStore, providers } from "./registry";
+import { defaultCountry } from "./config";
+import { startSearch } from "./runner";
+import { parseMapsUrl } from "@/core/mapsUrl";
+import type { ImportRow } from "@/core/importCsv";
+import { randomUUID } from "node:crypto";
 
 /** Días que un lead pasa en la papelera antes de borrarse (TRASH_DAYS, por defecto 30). */
 export function trashDays() {
@@ -168,4 +172,134 @@ export async function saveLowRating(v: unknown) {
   const next = { ...(await store.getSettings()), lowRating: Math.round(n * 10) / 10 };
   await store.saveSettings(next);
   return next;
+}
+
+/**
+ * Vuelve a extraer los datos de leads guardados: lanza una búsqueda con la URL
+ * de su ficha (o nombre + dirección) y, al terminar, actualiza los leads.
+ */
+export async function startRefresh(ids: string[]) {
+  const store = getStore();
+  const leads = (await Promise.all(ids.slice(0, 200).map((id) => store.getSavedLead(id)))).filter(Boolean) as SavedLead[];
+  if (!leads.length) throw badRequest("No hay leads que actualizar");
+
+  // Proveedor: el del lead si admite URLs; si no, el primero que las admita.
+  const own = getProvider(leads[0].providerId);
+  const provider = own?.acceptsMapsUrls ? own : providers.find((p) => p.acceptsMapsUrls);
+  if (!provider) throw badRequest("Ningún proveedor instalado permite volver a extraer datos (hace falta gosom).");
+
+  const queries = leads.map((l) =>
+    l.url && parseMapsUrl(l.url) ? l.url : [l.name, l.address].filter(Boolean).join(", "),
+  );
+  const countries = new Map((await store.listSearches()).map((s) => [s.id, s.params.country]));
+  return startSearch({
+    name: leads.length === 1 ? `Actualizar: ${leads[0].name}` : `Actualizar ${leads.length} leads`,
+    providerId: provider.id,
+    queries,
+    country: countries.get(leads[0].searchId) ?? defaultCountry(),
+    // Una ficha por consulta: poca profundidad y el tiempo mínimo.
+    options: { depth: 1, maxTimeMinutes: 3, email: true },
+    refreshLeadIds: leads.map((l) => l.id),
+  });
+}
+
+const normName = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+/**
+ * Importa leads (filas ya mapeadas desde un CSV) directamente a Leads.
+ * Los que ya existen (mismo place_id, o mismo nombre + dirección) actualizan
+ * sus datos; su etapa, etiquetas y notas no se tocan.
+ */
+export async function importLeads(
+  rawRows: unknown,
+  opts: { stage?: string; tags?: string[]; country?: string } = {},
+) {
+  if (!Array.isArray(rawRows) || rawRows.length === 0) throw badRequest("El archivo no tiene filas con nombre");
+  if (rawRows.length > 10_000) throw badRequest("Máximo 10.000 filas por importación");
+  const rows = (rawRows as ImportRow[]).filter((r) => r && typeof r.name === "string" && r.name.trim());
+
+  const store = getStore();
+  let settings = await store.getSettings();
+
+  // Etiquetas: se crean las que no existan (por nombre).
+  const tagByName = new Map(settings.tags.map((t) => [normName(t.name), t.id]));
+  const newTags: Tag[] = [];
+  for (const r of rows) {
+    for (const name of r.tags ?? []) {
+      const n = normName(name);
+      if (!n || tagByName.has(n)) continue;
+      const tag: Tag = { id: uniqueId(name, [...settings.tags, ...newTags].map((t) => t.id)), name: name.trim().slice(0, 40), color: "gray" };
+      newTags.push(tag);
+      tagByName.set(n, tag.id);
+    }
+  }
+  if (newTags.length) {
+    settings = { ...settings, tags: [...settings.tags, ...newTags] };
+    await store.saveSettings(settings);
+  }
+
+  const stageOf = (v?: string) =>
+    v ? settings.stages.find((s) => s.id === v || normName(s.name) === normName(v))?.id : undefined;
+  const defaultStage = stageOf(opts.stage) ?? initialStage(settings);
+  const extraTags = (opts.tags ?? []).filter((id) => settings.tags.some((t) => t.id === id));
+  const country = (opts.country || defaultCountry()).toUpperCase();
+  const now = new Date().toISOString();
+
+  const leads: SavedLead[] = rows.map((r) => {
+    const base = withNormalizedPhone(
+      {
+        id: randomUUID(),
+        searchId: "import",
+        sourceId: "import",
+        providerId: "csv",
+        externalId: r.externalId?.trim() || undefined,
+        name: r.name.trim(),
+        category: r.category,
+        emails: r.emails ?? [],
+        phone: r.phone,
+        website: r.website,
+        address: r.address,
+        rating: r.rating,
+        reviewCount: r.reviewCount,
+        reviews: [],
+        latitude: r.latitude,
+        longitude: r.longitude,
+        url: r.url,
+        extra: {},
+        collectedAt: now,
+      },
+      country,
+    );
+    return {
+      ...base,
+      key: leadDedupeKey(base),
+      searchIds: ["import"],
+      savedAt: now,
+      updatedAt: now,
+      stage: stageOf(r.stage) ?? defaultStage,
+      tags: [...new Set([...(r.tags ?? []).map((n) => tagByName.get(normName(n))!).filter(Boolean), ...extraTags])],
+      notes: r.notes?.trim() ? [{ id: randomUUID(), text: r.notes.trim(), createdAt: now }] : [],
+    };
+  });
+
+  // Filas repetidas del mismo negocio dentro del archivo: se combinan
+  // (gana el primer valor no vacío; etiquetas, emails y notas se suman).
+  const byKey = new Map<string, SavedLead>();
+  for (const l of leads) {
+    const prev = byKey.get(l.key);
+    if (!prev) {
+      byKey.set(l.key, l);
+      continue;
+    }
+    const merged = { ...l, ...Object.fromEntries(Object.entries(prev).filter(([, v]) => v !== undefined && v !== "")) } as SavedLead;
+    merged.emails = [...new Set([...prev.emails, ...l.emails])];
+    merged.tags = [...new Set([...prev.tags, ...l.tags])];
+    merged.notes = [...prev.notes, ...l.notes];
+    merged.stage = prev.stage !== defaultStage ? prev.stage : l.stage;
+    byKey.set(l.key, merged);
+  }
+  const unique = [...byKey.values()];
+  const res = await store.saveLeads(unique);
+  return { ...res, skipped: (rawRows as unknown[]).length - rows.length, duplicates: leads.length - unique.length, newTags: newTags.length };
 }

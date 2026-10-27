@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Columns3 as BoardIcon, List, Table2 } from "lucide-react";
+import { Columns3 as BoardIcon, FileUp, List, Table2 } from "lucide-react";
+import type { Search } from "@/core/search";
 import type { SavedLead } from "@/core/lead";
 import { applyLeadUpdate, type CrmSettings, type LeadUpdate, type Tag } from "@/core/crm";
 import { api, postJson, useData } from "../data/DataProvider";
 import { Board } from "../leads/Board";
 import { BulkBar } from "../leads/BulkBar";
 import { LeadDrawer } from "../leads/LeadDrawer";
+import { ImportDialog, type ImportResult } from "../leads/ImportDialog";
 import { ListView } from "../leads/ListView";
 import { LeadsTableView, NoMatches, TableSkeleton } from "../leads/Table";
 import { LeadsToolbar } from "../leads/Toolbar";
@@ -54,9 +56,13 @@ function useViewMode() {
 
 /** Leads guardados: tu CRM, en tabla, lista o tablero. */
 export function SavedLeads() {
-  const { modules, settings, setSettings, refreshSaved } = useData();
+  const { modules, settings, setSettings, refreshSaved, refreshSettings, searches, addSearch } = useData();
   const [leads, setLeads] = useState<SavedLead[]>();
   const [notice, setNotice] = useState<{ text: React.ReactNode; tone?: "error" }>();
+  const [importing, setImporting] = useState(false);
+
+  // Cuando termina una actualización de leads, recarga la lista.
+  const refreshesDone = searches.filter((s) => s.params.refreshLeadIds && s.status === "completed").length;
   const mode = useViewMode();
 
   const load = useCallback(
@@ -72,7 +78,40 @@ export function SavedLeads() {
 
   useEffect(() => {
     void Promise.resolve().then(load);
-  }, [load]);
+  }, [load, refreshesDone]);
+
+  async function refresh(ids: string[]) {
+    try {
+      const s = await postJson<Search>("/api/leads/refresh", { ids });
+      addSearch(s);
+      setNotice({
+        text: (
+          <>
+            Extrayendo de nuevo {ids.length === 1 ? "el lead" : `${ids.length} leads`} desde Google Maps (unos minutos). Sus datos se actualizarán
+            solos al terminar; etapa, etiquetas y notas no cambian.{" "}
+            <Link href="/busquedas" className="font-medium underline underline-offset-2">
+              Ver progreso
+            </Link>
+          </>
+        ),
+      });
+    } catch (err) {
+      setNotice({ text: (err as Error).message, tone: "error" });
+    }
+  }
+
+  function imported(r: ImportResult) {
+    setImporting(false);
+    const parts = [`${r.created} ${r.created === 1 ? "lead nuevo" : "leads nuevos"}`];
+    if (r.updated) parts.push(`${r.updated} ${r.updated === 1 ? "actualizado" : "actualizados"}`);
+    if (r.duplicates) parts.push(`${r.duplicates} repetidos en el archivo`);
+    if (r.skipped) parts.push(`${r.skipped} filas sin nombre omitidas`);
+    if (r.newTags) parts.push(`${r.newTags} ${r.newTags === 1 ? "etiqueta creada" : "etiquetas creadas"}`);
+    setNotice({ text: `Importación terminada: ${parts.join(", ")}.` });
+    void load();
+    void refreshSaved();
+    void refreshSettings();
+  }
 
   async function trash(ids: string[]) {
     try {
@@ -129,6 +168,10 @@ export function SavedLeads() {
         title="Leads"
         description="Los negocios que has guardado. Organízalos por etapa, etiqueta y color, y añade notas."
         actions={
+          <div className="flex flex-wrap items-center gap-2">
+          <button className="btn" onClick={() => setImporting(true)} disabled={!settings}>
+            <FileUp className="size-4" aria-hidden /> Importar CSV
+          </button>
           <div role="radiogroup" aria-label="Vista" className="flex gap-1 rounded-lg border border-line bg-surface p-1">
             {VIEWS.map(({ id, label, Icon }) => (
               <button
@@ -144,6 +187,7 @@ export function SavedLeads() {
                 {label}
               </button>
             ))}
+          </div>
           </div>
         }
       />
@@ -161,12 +205,21 @@ export function SavedLeads() {
           onTrash={trash}
           onCreateTag={createTag}
           onChangeOne={(lead) => setLeads((list) => list?.map((l) => (l.id === lead.id ? lead : l)))}
+          onRefresh={refresh}
           onDncChange={() => void refreshSaved()}
         />
       ) : (
         <section className="card">
           <TableSkeleton />
         </section>
+      )}
+      {importing && settings && (
+        <ImportDialog
+          settings={settings}
+          defaultCountry={modules?.defaults.country ?? "ES"}
+          onClose={() => setImporting(false)}
+          onDone={imported}
+        />
       )}
     </>
   );
@@ -181,6 +234,7 @@ function LeadsBody({
   onCreateTag,
   onChangeOne,
   onDncChange,
+  onRefresh,
 }: {
   leads: SavedLead[];
   settings: CrmSettings;
@@ -190,6 +244,7 @@ function LeadsBody({
   onCreateTag(name: string): Promise<Tag>;
   onChangeOne(lead: SavedLead): void;
   onDncChange(): void;
+  onRefresh(ids: string[]): Promise<void>;
 }) {
   const { modules, patchSettings } = useData();
   const view = useLeadView("saved", leads, settings);
@@ -242,6 +297,7 @@ function LeadsBody({
               if (u.doNotContact !== undefined) onDncChange();
             }}
             onTrash={onTrash}
+            onRefresh={onRefresh}
             onCreateTag={onCreateTag}
           />
         )}
@@ -275,6 +331,7 @@ function LeadsBody({
             await onTrash([id]);
           }}
           onCreateTag={onCreateTag}
+          onRefresh={() => onRefresh([open.id])}
         />
       )}
     </>

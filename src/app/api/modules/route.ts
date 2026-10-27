@@ -2,7 +2,7 @@ import { connection } from "next/server";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { exporters, getStorageModule, getStore, providers, sources } from "@/server/registry";
-import { defaultCountry } from "@/server/runner";
+import { defaultCountry } from "@/server/config";
 import { trashDays } from "@/server/crm";
 
 /** Describe los módulos registrados para que la UI se construya sola. */
@@ -15,6 +15,7 @@ export async function GET() {
       description: p.description,
       sourceId: p.sourceId,
       options: p.options,
+      acceptsMapsUrls: Boolean(p.acceptsMapsUrls),
       health: await p.health().catch((e: Error) => ({ ok: false, message: e.message })),
     })),
   );
