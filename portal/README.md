@@ -57,9 +57,13 @@ npm run dev                              # http://localhost:8787
 
 Y en el `.env.local` de la app: `PORTAL_URL=http://localhost:8787` con el mismo secreto.
 
+## Páginas legales
+
+`/legal/aviso-legal`, `/legal/privacidad` y `/legal/cookies`, enlazadas en el pie de todas las páginas. Se generan con los datos legales que rellenas en tu app (**Ajustes → Portal del cliente → Datos legales**), que los publica al guardar en la tabla `site` (migración `0002_site.sql`). Mientras falte algún dato, la página lo indica. Son plantillas orientativas para España, no asesoramiento legal.
+
 ## Seguridad
 
 - Cada cliente tiene un enlace con un token aleatorio. El portal solo guarda su hash, no el token.
 - Puedes renovar el enlace (el anterior deja de funcionar) o desactivar el portal desde la ficha del cliente.
 - La API de publicación exige `PORTAL_SECRET`. Las páginas no se indexan en buscadores y no envían el enlace a otras webs (sin Referer).
-- No usa JavaScript ni cookies.
+- No usa JavaScript ni cookies propias (Cloudflare puede poner su cookie técnica de seguridad `__cf_bm`).

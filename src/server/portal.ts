@@ -1,7 +1,8 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { projectProgress, projectTotals, statusLabel, type Client } from "@/core/clients";
-import { PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalSnapshot, type PortalStatus } from "@/core/portal";
+import type { PortalBrandSettings } from "@/core/crm";
+import { PORTAL_SITE_VERSION, PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalSite, type PortalSnapshot, type PortalStatus } from "@/core/portal";
 import { getStore } from "./registry";
 
 /**
@@ -64,12 +65,10 @@ function digits(v?: string) {
   return d && d.length >= 8 ? d : undefined;
 }
 
-/** Construye lo que verá el cliente: solo proyectos no cancelados y lo marcado como visible. */
-export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
-  const store = getStore();
-  const [projects, tasks, settings] = await Promise.all([store.listProjects({ clientId: client.id }), store.listTasks({ clientId: client.id }), store.getSettings()]);
-  const b = settings.portal ?? {};
-  const brand: PortalBrand = {
+const timeZone = () => process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+function brandOf(b: PortalBrandSettings = {}): PortalBrand {
+  return {
     name: b.brandName?.trim() || "Portal de clientes",
     ...(b.email ? { email: b.email } : {}),
     ...(b.phone ? { phone: b.phone } : {}),
@@ -77,6 +76,32 @@ export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
     ...(b.website ? { website: b.website } : {}),
     ...(b.welcome ? { welcome: b.welcome } : {}),
   };
+}
+
+/** Marca y datos legales comunes a todo el portal (páginas /legal/*). */
+export async function buildSite(): Promise<PortalSite> {
+  const b = (await getStore().getSettings()).portal ?? {};
+  const legal = { holder: b.legalName, taxId: b.taxId, address: b.legalAddress, registry: b.registry };
+  return {
+    version: PORTAL_SITE_VERSION,
+    brand: brandOf(b),
+    legal: Object.fromEntries(Object.entries(legal).filter(([, v]) => v)),
+    timeZone: timeZone(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Publica la marca y los datos legales en el portal. */
+export async function publishSite() {
+  const res = await portalFetch("/site", { method: "PUT", body: JSON.stringify(await buildSite()) });
+  if (!res.ok) throw await portalError(res);
+}
+
+/** Construye lo que verá el cliente: solo proyectos no cancelados y lo marcado como visible. */
+export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
+  const store = getStore();
+  const [projects, tasks, settings] = await Promise.all([store.listProjects({ clientId: client.id }), store.listTasks({ clientId: client.id }), store.getSettings()]);
+  const brand = brandOf(settings.portal);
   const item = (x: { title: string; dueAt?: string; done: boolean; doneAt?: string }) => ({
     title: x.title,
     done: x.done,
@@ -88,7 +113,7 @@ export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
     version: PORTAL_SNAPSHOT_VERSION,
     client: { id: client.id, name: client.name, ...(client.contactName ? { contactName: client.contactName } : {}) },
     brand,
-    timeZone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    timeZone: timeZone(),
     publishedAt: new Date().toISOString(),
     projects: projects
       .filter((p) => p.status !== "cancelled")
@@ -159,7 +184,10 @@ export async function enablePortal(clientId: string, regenerate = false) {
   if (!client.portal || regenerate) {
     await saveClientPortal(client, { token: newToken(), enabledAt: new Date().toISOString() });
   }
-  return publishClient(clientId);
+  const done = await publishClient(clientId);
+  // Asegura que las páginas legales tienen tus datos (por si se guardaron sin conexión).
+  await publishSite().catch((err: Error) => console.error(`[portal] datos legales: ${err.message}`));
+  return done;
 }
 
 /** Borra el portal del cliente en el servidor y olvida el enlace. */

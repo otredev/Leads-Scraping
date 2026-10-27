@@ -3,6 +3,7 @@
  *
  * - /p/<token>            proyectos del cliente
  * - /p/<token>/<proyecto> avance, cronograma, tareas y pagos de un proyecto
+ * - /legal/<página>      aviso legal, privacidad y cookies (con tus datos de Ajustes)
  * - /api/*                API privada para que tu app publique (Bearer PORTAL_SECRET)
  *
  * El portal no conoce tu CRM: solo guarda el último snapshot que publica tu app.
@@ -10,9 +11,10 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
-import type { PortalSnapshot } from "../../src/core/portal";
+import type { PortalSite, PortalSnapshot } from "../../src/core/portal";
 import { CSS } from "./styles";
 import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
+import { LEGAL_PAGES, LegalPage, type LegalSlug } from "./legal";
 
 type Env = { DB: D1Database; PORTAL_SECRET: string };
 
@@ -45,6 +47,20 @@ app.get("/portal.css", (c) => {
   return c.body(CSS, 200, { "Content-Type": "text/css; charset=utf-8" });
 });
 app.get("/", (c) => c.html(<HomePage />));
+
+// ── Páginas legales (públicas) ──
+
+async function loadSite(db: D1Database) {
+  const row = await db.prepare("SELECT value FROM site WHERE key = 'site'").first<{ value: string }>();
+  return row ? (JSON.parse(row.value) as PortalSite) : undefined;
+}
+
+app.get("/legal/:page", async (c) => {
+  const page = c.req.param("page") as LegalSlug;
+  if (!Object.hasOwn(LEGAL_PAGES, page)) return c.html(<NotFoundPage />, 404);
+  c.header("Cache-Control", "public, max-age=300");
+  return c.html(<LegalPage page={page} site={await loadSite(c.env.DB)} />);
+});
 
 // ── Páginas del cliente ──
 
@@ -122,6 +138,20 @@ api.put("/portals/:clientId", bodyLimit({ maxSize: 1024 * 1024 }), async (c) => 
     .bind(clientId, body.tokenHash, JSON.stringify(body.snapshot), now)
     .run();
   return c.json({ ok: true, publishedAt: now });
+});
+
+/** Publica tu marca y tus datos legales (PortalSite). */
+api.put("/site", bodyLimit({ maxSize: 64 * 1024 }), async (c) => {
+  const site = await c.req.json<PortalSite>().catch(() => undefined);
+  if (!site || site.version !== 1 || typeof site.brand?.name !== "string" || typeof site.legal !== "object") return c.json({ error: "Datos no válidos" }, 400);
+  const now = new Date().toISOString();
+  await c.env.DB.prepare(
+    `INSERT INTO site (key, value, updated_at) VALUES ('site', ?1, ?2)
+     ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`,
+  )
+    .bind(JSON.stringify(site), now)
+    .run();
+  return c.json({ ok: true, updatedAt: now });
 });
 
 /** Estado: cuándo se publicó y cuándo lo vio el cliente por última vez. */

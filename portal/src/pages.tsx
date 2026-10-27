@@ -3,7 +3,7 @@ import type { PortalItem, PortalProject, PortalSnapshot } from "../../src/core/p
 
 // ── Formatos (en la zona horaria de tu app) ──
 
-const fmt = (tz: string, opts: Intl.DateTimeFormatOptions) => {
+export const fmt = (tz: string, opts: Intl.DateTimeFormatOptions) => {
   try {
     return new Intl.DateTimeFormat("es", { ...opts, timeZone: tz });
   } catch {
@@ -47,7 +47,7 @@ function nextMilestone(p: PortalProject) {
 
 // ── Piezas ──
 
-function Layout({ title, children, brand }: { title: string; children: Child; brand?: string }) {
+export function Layout({ title, children, brand }: { title: string; children: Child; brand?: string }) {
   return (
     <html lang="es">
       <head>
@@ -117,18 +117,32 @@ function Contact({ snap }: { snap: PortalSnapshot }) {
   );
 }
 
+/** Enlaces a las páginas legales (en el pie de todas las páginas). */
+export function LegalLinks() {
+  return (
+    <nav class="legal-links" aria-label="Información legal">
+      <a href="/legal/aviso-legal">Aviso legal</a>
+      <a href="/legal/privacidad">Privacidad</a>
+      <a href="/legal/cookies">Cookies</a>
+    </nav>
+  );
+}
+
 function Footer({ snap }: { snap: PortalSnapshot }) {
   return (
     <footer class="foot">
-      Actualizado el {dateTime(snap.publishedAt, snap.timeZone)}
-      {snap.brand.website && (
-        <>
-          {" · "}
-          <a href={snap.brand.website} rel="noopener">
-            {snap.brand.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-          </a>
-        </>
-      )}
+      <p>
+        Actualizado el {dateTime(snap.publishedAt, snap.timeZone)}
+        {snap.brand.website && (
+          <>
+            {" · "}
+            <a href={snap.brand.website} rel="noopener">
+              {snap.brand.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+            </a>
+          </>
+        )}
+      </p>
+      <LegalLinks />
     </footer>
   );
 }
@@ -142,6 +156,9 @@ export function HomePage() {
         <h1>Portal de clientes</h1>
         <p class="muted">Abre el enlace personal que te hemos enviado para ver el avance de tu proyecto.</p>
       </main>
+      <footer class="foot">
+        <LegalLinks />
+      </footer>
     </Layout>
   );
 }
@@ -155,6 +172,9 @@ export function NotFoundPage({ error }: { error?: boolean }) {
           {error ? "Inténtalo de nuevo en unos minutos." : "Puede que haya caducado o se haya renovado. Pide un enlace nuevo a quien te lo envió."}
         </p>
       </main>
+      <footer class="foot">
+        <LegalLinks />
+      </footer>
     </Layout>
   );
 }

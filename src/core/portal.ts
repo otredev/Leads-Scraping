@@ -65,6 +65,32 @@ export interface PortalSnapshot {
   publishedAt: string;
 }
 
+/** Datos legales del titular del portal (aviso legal, LSSI art. 10). */
+export interface PortalLegal {
+  /** Nombre y apellidos o razón social. */
+  holder?: string;
+  /** NIF / CIF. */
+  taxId?: string;
+  /** Domicilio. */
+  address?: string;
+  /** Datos registrales o colegio profesional, si aplica. */
+  registry?: string;
+}
+
+export const PORTAL_SITE_VERSION = 1;
+
+/**
+ * Datos comunes del portal (no de un cliente): tu marca y tus datos legales.
+ * Con ellos se generan las páginas /legal/* del portal.
+ */
+export interface PortalSite {
+  version: typeof PORTAL_SITE_VERSION;
+  brand: PortalBrand;
+  legal: PortalLegal;
+  timeZone: string;
+  updatedAt: string;
+}
+
 /** Estado del portal de un cliente según el servidor del portal. */
 export interface PortalStatus {
   publishedAt?: string;

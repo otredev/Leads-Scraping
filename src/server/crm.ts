@@ -340,11 +340,17 @@ export async function savePortalBrand(raw: unknown) {
     whatsapp: text("whatsapp", 40),
     website,
     welcome: text("welcome", 500),
+    legalName: text("legalName", 120),
+    taxId: text("taxId", 30)?.toUpperCase(),
+    legalAddress: text("legalAddress", 300),
+    registry: text("registry", 300),
   };
   const store = getStore();
   const next: CrmSettings = { ...(await store.getSettings()), portal: Object.fromEntries(Object.entries(portal).filter(([, v]) => v)) };
   await store.saveSettings(next);
-  const { scheduleAll } = await import("./portal");
+  const { scheduleAll, publishSite, portalConfig } = await import("./portal");
   await scheduleAll();
+  // Marca y datos legales del portal (páginas /legal/*). Si falla, se reintenta al activar o publicar un portal.
+  if (portalConfig().configured) await publishSite().catch((err: Error) => console.error(`[portal] datos legales: ${err.message}`));
   return next;
 }

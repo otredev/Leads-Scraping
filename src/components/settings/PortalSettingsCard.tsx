@@ -80,6 +80,48 @@ export function PortalSettingsCard({ settings }: { settings: CrmSettings }) {
               />
             </Field>
           </div>
+
+          <div className="flex flex-col gap-1 border-t border-line pt-4">
+            <p className="text-[13.5px] font-semibold">Datos legales</p>
+            <p className="text-[13px] text-muted">
+              Con ellos se generan el aviso legal, la política de privacidad y la de cookies del portal, enlazados en el pie de cada página.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Titular" hint="Nombre y apellidos o razón social">
+              <input className="input" value={draft.legalName ?? ""} onChange={set("legalName")} maxLength={120} autoComplete="name" />
+            </Field>
+            <Field label="NIF / CIF">
+              <input className="input" value={draft.taxId ?? ""} onChange={set("taxId")} maxLength={30} />
+            </Field>
+            <Field label="Domicilio" className="sm:col-span-2">
+              <input className="input" value={draft.legalAddress ?? ""} onChange={set("legalAddress")} maxLength={300} autoComplete="street-address" />
+            </Field>
+            <Field label="Datos registrales (opcional)" hint="Registro Mercantil o colegio profesional, si te aplica" className="sm:col-span-2">
+              <input className="input" value={draft.registry ?? ""} onChange={set("registry")} maxLength={300} />
+            </Field>
+          </div>
+          <p className="hint">
+            El email y el teléfono de arriba también aparecen en el aviso legal. Los textos son plantillas orientativas para España, no asesoramiento legal: revísalos con
+            un profesional.
+            {conn?.url && (
+              <>
+                {" "}
+                Ver:{" "}
+                <a className="underline underline-offset-2" href={`${conn.url}/legal/aviso-legal`} target="_blank" rel="noreferrer">
+                  aviso legal
+                </a>
+                {" · "}
+                <a className="underline underline-offset-2" href={`${conn.url}/legal/privacidad`} target="_blank" rel="noreferrer">
+                  privacidad
+                </a>
+                {" · "}
+                <a className="underline underline-offset-2" href={`${conn.url}/legal/cookies`} target="_blank" rel="noreferrer">
+                  cookies
+                </a>
+              </>
+            )}
+          </p>
           <div>
             <button className="btn btn-primary btn-sm" disabled={busy || !dirty}>
               Guardar

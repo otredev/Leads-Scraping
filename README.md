@@ -151,6 +151,10 @@ En la ficha de cada lead, **Página web → Copiar para Claude** copia un encarg
 
 Leads Scraping se puede instalar con su propio icono y ventana: en Chrome o Edge, con el icono de instalar de la barra de direcciones (o en Ajustes → Instalar la app). Instalada, los avisos de tareas salen como notificaciones del sistema y, si el servidor no está encendido, muestra una pantalla de "sin conexión" en lugar de un error. En el móvil solo se puede instalar cuando la app esté desplegada con HTTPS.
 
+### Ayuda
+
+La página **Ayuda** (menú lateral) tiene guías de cada parte de la app, con buscador e índice por página: primeros pasos, búsquedas, leads, completar datos, contacto, tareas y calendario, clientes, portal, Claude y Otrelink, ajustes y buenas prácticas legales (RGPD y LSSI). Funciona sin conexión. Las guías son ficheros Markdown en `src/content/docs/` (con `title`, `description` y `order` en la cabecera): para añadir una, crea un `.md` ahí y aparecerá sola en `/ayuda/<nombre-del-fichero>`.
+
 ### Clientes y proyectos
 
 La página **Clientes** gestiona el trabajo para tus clientes:
@@ -173,6 +177,7 @@ Cada cliente puede tener un **enlace privado** a una web (en Cloudflare, gratis)
 - En la ficha del cliente: **Activar portal**, copiar o enviar el enlace por WhatsApp o email, ver cuándo lo abrió por última vez, **renovar** el enlace (el anterior deja de funcionar) o **desactivarlo**.
 - Se actualiza solo: cada cambio en sus proyectos, hitos o tareas se publica a los pocos segundos (mientras tu app esté encendida). También hay un botón "Publicar ahora".
 - Al portal solo se envía lo marcado como visible. Tu CRM, notas internas y horas nunca salen de tu equipo.
+- **Páginas legales**: el portal tiene aviso legal, política de privacidad y de cookies (`/legal/aviso-legal`, `/legal/privacidad`, `/legal/cookies`), enlazadas en el pie de todas sus páginas. Se generan con los **datos legales** de Ajustes → Portal del cliente (titular, NIF/CIF, domicilio, datos registrales) más tu email y teléfono, y se actualizan al guardar. Son plantillas orientativas para España (LSSI y RGPD) adaptadas a lo que hace el portal (sin cookies propias ni analítica, alojado en Cloudflare): revísalas con un profesional. Si actualizas un portal ya desplegado, aplica antes la migración nueva (`npm run db:migrate:remote`).
 
 ### Proveedores para completar datos
 
@@ -352,19 +357,6 @@ La app está pensada para uso local. Para desplegarla habría que cambiar dos pi
 ## Aviso
 
 Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo con moderación, para prospección propia, y respeta la normativa de protección de datos (RGPD) al contactar con los leads.
-
-
-# Pendientes: 
-
-# Otros:
-
-
-- Crear pagina de documentacion
-- Crear paginas legales, politicas, privacidad...
-
-- Pagina de administracion y gestion de clientes para las tareas y proyectos desde ahi. Que se pueda crear un cliente manual.
-- Vista para el cliente pueda ver el avance del proyecto, tareas pendientes y cronogramas de entrega.
-- Chat de cliente-admin integrado en la app
 
 
 ### Futuro:

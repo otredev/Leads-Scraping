@@ -165,6 +165,11 @@ export interface PortalBrandSettings {
   whatsapp?: string;
   website?: string;
   welcome?: string;
+  /** Datos legales (aviso legal y privacidad del portal). */
+  legalName?: string;
+  taxId?: string;
+  legalAddress?: string;
+  registry?: string;
 }
 
 export const DEFAULT_STAGES: Stage[] = [
