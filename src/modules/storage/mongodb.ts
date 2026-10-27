@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { MongoClient, type AnyBulkWriteOperation, type Db, type UpdateFilter } from "mongodb";
-import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate } from "@/core/crm";
+import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
 import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "@/core/storage";
 import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
@@ -15,7 +15,8 @@ import type { Search } from "@/core/search";
  *   searches  historial de búsquedas
  *   results   resultados de cada búsqueda (único por búsqueda + negocio)
  *   leads     leads guardados (único por negocio), con papelera
- *   settings  etapas, etiquetas y preferencias del CRM (documento "crm")
+ *   settings  etapas, etiquetas, plantillas y preferencias (documento "crm")
+ *   tasks     tareas de seguimiento de los leads
  *
  * La papelera usa un índice TTL sobre `purgeAt`: MongoDB borra solo los
  * documentos caducados. Además se purgan desde la app por si el servidor no
@@ -84,6 +85,8 @@ async function ensureIndexes(d: Db) {
   await d.collection("leads").createIndex({ deletedAt: 1 });
   await d.collection("leads").createIndex({ stage: 1 });
   await d.collection("leads").createIndex({ tags: 1 });
+  await d.collection("tasks").createIndex({ leadId: 1 });
+  await d.collection("tasks").createIndex({ dueAt: 1 });
   try {
     await d.collection("leads").createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 });
   } catch {
@@ -94,6 +97,7 @@ async function ensureIndexes(d: Db) {
 const searches = async () => (await db()).collection<Doc<Search>>("searches");
 const results = async () => (await db()).collection<ResultDoc>("results");
 const leads = async () => (await db()).collection<SavedDoc>("leads");
+const tasks = async () => (await db()).collection<Doc<Task>>("tasks");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
 
 function fromDoc<T>(doc: Doc<T> | null | undefined): T | undefined {
@@ -284,13 +288,16 @@ class MongoStore implements LeadStore {
     const now = new Date().toISOString();
 
     // Notas: lectura-modificación-escritura (son siempre de un solo lead).
-    if (u.addNote || u.updateNote || u.deleteNote) {
+    if (u.addNote || u.updateNote || u.deleteNote || u.logContact) {
       let n = 0;
       for (const id of ids) {
         const doc = await col.findOne({ _id: id });
         if (!doc) continue;
         const next = applyLeadUpdate(savedFromDoc(doc), u, now, randomUUID);
-        await col.updateOne({ _id: id }, { $set: { notes: next.notes, updatedAt: now } });
+        await col.updateOne(
+          { _id: id },
+          { $set: { notes: next.notes, contacts: next.contacts ?? [], ...(next.lastContactAt ? { lastContactAt: next.lastContactAt } : {}), updatedAt: now } },
+        );
         n++;
       }
       if (!u.stage && u.color === undefined && !u.addTags && !u.removeTags && u.doNotContact === undefined) return n;
@@ -333,6 +340,36 @@ class MongoStore implements LeadStore {
     return res.modifiedCount;
   }
 
+  // ── Tareas ──
+
+  async listTasks(opts: { leadId?: string } = {}) {
+    const docs = await (await tasks()).find(opts.leadId ? { leadId: opts.leadId } : {}).sort({ dueAt: 1 }).toArray();
+    return docs.map((d) => fromDoc<Task>(d) as Task);
+  }
+
+  async createTask(task: Task) {
+    const { id, ...rest } = task;
+    await (await tasks()).insertOne(clean({ ...rest, _id: id }) as Doc<Task>);
+  }
+
+  async updateTask(id: string, patch: Partial<Task>) {
+    const { id: _ignored, ...rest } = patch;
+    void _ignored;
+    const unset: Record<string, ""> = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v === undefined).map(([k]) => [k, ""] as const),
+    );
+    const doc = await (await tasks()).findOneAndUpdate(
+      { _id: id },
+      { $set: clean(rest), ...(Object.keys(unset).length ? { $unset: unset } : {}) },
+      { returnDocument: "after" },
+    );
+    return fromDoc<Task>(doc);
+  }
+
+  async deleteTask(id: string) {
+    await (await tasks()).deleteOne({ _id: id });
+  }
+
   // ── Ajustes del CRM ──
 
   async getSettings() {
@@ -363,6 +400,7 @@ class MongoStore implements LeadStore {
       results: r.map(stripKey),
       leads: l.map(savedFromDoc),
       settings: await this.getSettings(),
+      tasks: await this.listTasks(),
     };
   }
 
@@ -400,6 +438,14 @@ class MongoStore implements LeadStore {
       summary.leads = res.upsertedCount;
     }
     if (backup.settings) await this.saveSettings(mergeSettings(await this.getSettings(), backup.settings));
+    if (backup.tasks?.length) {
+      await (await tasks()).bulkWrite(
+        backup.tasks.map(({ id, ...rest }) => ({
+          updateOne: { filter: { _id: id }, update: { $setOnInsert: clean(rest) as Doc<Task> }, upsert: true },
+        })),
+        { ordered: false },
+      );
+    }
     return summary;
   }
 }

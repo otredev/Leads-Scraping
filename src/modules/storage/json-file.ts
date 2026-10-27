@@ -3,7 +3,7 @@ import path from "node:path";
 import { defineStorage, type LeadStore } from "@/core/storage";
 import { randomUUID } from "node:crypto";
 import { dedupeLeads, leadDedupeKey, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
-import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate } from "@/core/crm";
+import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 
@@ -12,7 +12,8 @@ import type { Search } from "@/core/search";
  *   data/searches.json
  *   data/leads/<searchId>.json   (resultados de cada búsqueda)
  *   data/saved-leads.json        (leads guardados, incluida la papelera)
- *   data/settings.json           (etapas, etiquetas y preferencias del CRM)
+ *   data/settings.json           (etapas, etiquetas, plantillas y preferencias)
+ *   data/tasks.json              (tareas de seguimiento)
  * Sin dependencias ni servicios: ideal para uso local y pruebas.
  */
 
@@ -23,6 +24,10 @@ class JsonFileStore implements LeadStore {
 
   private get searchesFile() {
     return path.join(this.dir, "searches.json");
+  }
+
+  private get tasksFile() {
+    return path.join(this.dir, "tasks.json");
   }
 
   private get settingsFile() {
@@ -261,6 +266,39 @@ class JsonFileStore implements LeadStore {
     });
   }
 
+  // ── Tareas ──
+
+  async listTasks(opts: { leadId?: string } = {}) {
+    const all = await this.read<Task[]>(this.tasksFile, []);
+    return all.filter((t) => !opts.leadId || t.leadId === opts.leadId).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  }
+
+  createTask(task: Task) {
+    return this.lock(async () => {
+      const all = await this.read<Task[]>(this.tasksFile, []);
+      all.push(task);
+      await this.write(this.tasksFile, all);
+    });
+  }
+
+  updateTask(id: string, patch: Partial<Task>) {
+    return this.lock(async () => {
+      const all = await this.read<Task[]>(this.tasksFile, []);
+      const i = all.findIndex((t) => t.id === id);
+      if (i === -1) return undefined;
+      all[i] = { ...all[i], ...patch, id };
+      await this.write(this.tasksFile, all);
+      return all[i];
+    });
+  }
+
+  deleteTask(id: string) {
+    return this.lock(async () => {
+      const all = await this.read<Task[]>(this.tasksFile, []);
+      await this.write(this.tasksFile, all.filter((t) => t.id !== id));
+    });
+  }
+
   // ── Ajustes del CRM ──
 
   async getSettings() {
@@ -284,6 +322,7 @@ class JsonFileStore implements LeadStore {
       results,
       leads: await this.readSaved(),
       settings: await this.getSettings(),
+      tasks: await this.listTasks(),
     };
   }
 
@@ -306,6 +345,13 @@ class JsonFileStore implements LeadStore {
       return fresh.length;
     });
     if (backup.settings) await this.saveSettings(mergeSettings(await this.getSettings(), backup.settings));
+    if (backup.tasks?.length) {
+      await this.lock(async () => {
+        const all = await this.read<Task[]>(this.tasksFile, []);
+        const ids = new Set(all.map((t) => t.id));
+        await this.write(this.tasksFile, [...all, ...backup.tasks!.filter((t) => !ids.has(t.id))]);
+      });
+    }
     return summary;
   }
 }

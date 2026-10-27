@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import type { ImportSummary } from "@/core/storage";
 import { api, useData } from "../data/DataProvider";
 import { CrmSettingsCard } from "../settings/CrmSettingsCard";
+import { TemplatesCard } from "../settings/TemplatesCard";
 import { Card, Loading, Notice, PageHeader, Skeleton } from "../ui";
 
 function Code({ children }: { children: React.ReactNode }) {
@@ -219,7 +220,10 @@ export function Settings() {
             />
           </div>
           {settings ? (
-            <CrmSettingsCard key={JSON.stringify([settings.stages, settings.tags, settings.lowRating])} settings={settings} />
+            <>
+              <CrmSettingsCard key={JSON.stringify([settings.stages, settings.tags, settings.lowRating])} settings={settings} />
+              <TemplatesCard key={JSON.stringify(settings.templates)} settings={settings} />
+            </>
           ) : (
             <SkeletonCards titles={["Etapas y etiquetas"]} />
           )}

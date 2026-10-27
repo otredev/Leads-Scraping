@@ -2,7 +2,9 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Search } from "@/core/search";
-import type { CrmSettings } from "@/core/crm";
+import type { CrmSettings, Task } from "@/core/crm";
+
+export type TaskView = Task & { leadExists: boolean };
 import type { ModulesInfo } from "../types";
 
 interface DataContextValue {
@@ -18,6 +20,10 @@ interface DataContextValue {
   /** Guarda un cambio de ajustes (PATCH /api/settings) y actualiza el estado. */
   patchSettings(body: unknown): Promise<CrmSettings>;
   setSettings(s: CrmSettings): void;
+  /** Todas las tareas (se refrescan cada minuto). */
+  tasks: TaskView[];
+  tasksLoaded: boolean;
+  refreshTasks(): Promise<void>;
   /** true hasta la primera respuesta de /api/searches. */
   loading: boolean;
   error?: string;
@@ -52,6 +58,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
   const [dncKeys, setDncKeys] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<CrmSettings>();
+  const [tasks, setTasks] = useState<TaskView[]>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -94,6 +102,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const refreshTasks = useCallback(
+    () =>
+      api<TaskView[]>("/api/tasks")
+        .then(setTasks)
+        .catch(() => undefined)
+        .finally(() => setTasksLoaded(true)),
+    [],
+  );
+
+  // Las tareas vencen con el tiempo: se refrescan cada minuto.
+  useEffect(() => {
+    const t = setInterval(refreshTasks, 60_000);
+    return () => clearInterval(t);
+  }, [refreshTasks]);
+
   const patchSettings = useCallback(async (body: unknown) => {
     const next = await postJson<CrmSettings>("/api/settings", body, "PATCH");
     setSettings(next);
@@ -101,8 +124,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(() => Promise.all([refreshModules(), refreshSearches(), refreshSaved(), refreshSettings()]));
-  }, [refreshModules, refreshSearches, refreshSaved, refreshSettings]);
+    void Promise.resolve().then(() => Promise.all([refreshModules(), refreshSearches(), refreshSaved(), refreshSettings(), refreshTasks()]));
+  }, [refreshModules, refreshSearches, refreshSaved, refreshSettings, refreshTasks]);
 
   const anyActive = searches.some((s) => s.status === "running" || s.status === "queued");
   useEffect(() => {
@@ -128,9 +151,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       refreshSettings,
       patchSettings,
       setSettings,
+      tasks,
+      tasksLoaded,
+      refreshTasks,
       addSearch,
     }),
-    [modules, searches, savedKeys, dncKeys, settings, loading, error, refreshSearches, refreshModules, refreshSaved, refreshSettings, patchSettings, addSearch],
+    [modules, searches, savedKeys, dncKeys, settings, loading, error, refreshSearches, refreshModules, refreshSaved, refreshSettings, patchSettings, tasks, tasksLoaded, refreshTasks, addSearch],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

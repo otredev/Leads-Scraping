@@ -11,6 +11,7 @@ import {
   type TableId,
   type TablePrefs,
   type Tag,
+  type MessageTemplate,
 } from "@/core/crm";
 import { cleanFilters } from "@/core/query";
 import { getProvider, getStore, providers } from "./registry";
@@ -302,4 +303,24 @@ export async function importLeads(
   const unique = [...byKey.values()];
   const res = await store.saveLeads(unique);
   return { ...res, skipped: (rawRows as unknown[]).length - rows.length, duplicates: leads.length - unique.length, newTags: newTags.length };
+}
+
+/** Sustituye la lista de plantillas de mensaje. */
+export async function saveTemplates(raw: unknown) {
+  if (!Array.isArray(raw)) throw badRequest("Formato de plantillas no válido");
+  const store = getStore();
+  const settings = await store.getSettings();
+  const ids = new Set<string>();
+  const templates: MessageTemplate[] = (raw as Partial<MessageTemplate>[]).map((t) => {
+    const name = cleanName(t?.name, "plantilla");
+    const body = typeof t?.body === "string" ? t.body.slice(0, 5000) : "";
+    if (!body.trim()) throw badRequest(`La plantilla "${name}" no tiene texto`);
+    const channel = t?.channel === "email" ? "email" : "whatsapp";
+    const id = typeof t?.id === "string" && t.id && !ids.has(t.id) ? t.id : uniqueId(`${name}-${channel}`, ids);
+    ids.add(id);
+    return { id, name, channel, body, ...(channel === "email" && typeof t?.subject === "string" ? { subject: t.subject.slice(0, 300) } : {}) };
+  });
+  const next: CrmSettings = { ...settings, templates };
+  await store.saveSettings(next);
+  return next;
 }

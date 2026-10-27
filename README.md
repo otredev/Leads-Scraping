@@ -91,6 +91,14 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 
 **Copias de seguridad:** en Ajustes → "Descargar copia" obtienes un JSON con todo (búsquedas, resultados y leads, incluida la papelera). "Restaurar desde archivo" solo añade lo que falte, nunca sobrescribe. El formato es el mismo con MongoDB o con ficheros locales, así que también sirve para migrar entre ellos.
 
+### Seguimiento y contacto
+
+- **Contactar** (en la ficha del lead): abre WhatsApp o tu correo con una plantilla ya rellenada, llama o copia el teléfono/email. Cada acción queda en el *historial de contacto* y actualiza la columna "Último contacto". Los leads marcados como "no contactar" tienen los botones desactivados.
+- **Plantillas** (Ajustes → Plantillas de mensaje): textos de WhatsApp o email con variables `{nombre}`, `{categoria}`, `{direccion}`, `{telefono}`, `{email}`, `{web}`, `{valoracion}`, `{resenas}` y `{etapa}`, con vista previa.
+- **Tareas**: créalas desde la ficha ("Llamar el lunes a las 10"). La página **Tareas** las agrupa en vencidas, hoy y próximas, y el menú lateral muestra cuántas tocan. Avisan dentro de la app y, si lo permites, con notificaciones del navegador (solo mientras la app esté abierta). Para recordatorios en el móvil, cada tarea se puede añadir a Google Calendar o descargar como `.ics`.
+- **Mapa**: vista de los leads filtrados sobre OpenStreetMap (Leaflet, gratis), coloreados por etapa. Útil para planificar visitas por zona. Los leads importados sin coordenadas no aparecen.
+- **Panel**: embudo de conversión por etapa (% contactados y % en la última etapa) y las tareas para hoy.
+
 > **Email:** Google Maps no publica emails. Solo aparecen si gosom los encuentra en la web del negocio.
 
 ---
@@ -247,15 +255,21 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 - [x] Volver a extraer los datos de un lead guardado para refrescarlo.
 
 ## Fase 4 · Seguimiento y contacto
-- [ ] Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
-- [ ] Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
-- [ ] Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
-- [ ] Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
-- [ ] Embudo de conversión por etapa en el panel.
+- [x] Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
+- [x] Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
+- [x] Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
+- [x] Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
+- [x] Embudo de conversión por etapa en el panel.
 
 ## Fase 5 · Integración con Claude
 - [ ] Crear MCP para manejarlo desde claude
 - [ ] Copiar datos de lead para crear con MCP de claude la pag en otrelink
+- [ ] Convertir la app en pwa
+
+
+# Otros:
+- Pagina de solo clientes para administrar las tareas y proyectos.
+- Buscar mas proveedores para cuando le de actualizar pueda usar otro proveedor que me pueda complementar datos como por ej los socials
 
 ### Futuro:
 Login y multiusuario

@@ -1,0 +1,90 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { BellRing, X } from "lucide-react";
+import { useData, type TaskView } from "../data/DataProvider";
+import { formatDue } from "./TaskParts";
+
+const KEY = "notified-tasks";
+const WINDOW_MS = 60 * 60_000; // solo avisa de tareas vencidas en la última hora
+
+function readNotified(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(KEY) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveNotified(ids: Set<string>) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify([...ids].slice(-500)));
+  } catch {
+    /* sin almacenamiento: puede repetir algún aviso */
+  }
+}
+
+/**
+ * Avisos de tareas: cuando llega la hora de una tarea muestra un aviso en la
+ * app y, si el usuario lo ha permitido, una notificación del navegador.
+ * Funciona mientras la app esté abierta en alguna pestaña.
+ */
+export function TaskNotifier() {
+  const { tasks } = useData();
+  const [toasts, setToasts] = useState<TaskView[]>([]);
+
+  useEffect(() => {
+    const check = () => {
+      const now = Date.now();
+      const notified = readNotified();
+      const due = tasks.filter((t) => {
+        const at = new Date(t.dueAt).getTime();
+        return !t.done && at <= now && now - at < WINDOW_MS && !notified.has(t.id);
+      });
+      if (!due.length) return;
+      for (const t of due) {
+        notified.add(t.id);
+        try {
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification(t.title, { body: `${t.leadName} · ${formatDue(t.dueAt)}`, tag: t.id });
+          }
+        } catch {
+          /* algunos navegadores no permiten notificaciones aquí */
+        }
+      }
+      saveNotified(notified);
+      setToasts((list) => [...due, ...list].slice(0, 4));
+    };
+    check();
+    const timer = setInterval(check, 15_000);
+    return () => clearInterval(timer);
+  }, [tasks]);
+
+  if (!toasts.length) return null;
+  return (
+    <div className="fixed right-4 bottom-4 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2" role="status" aria-live="polite">
+      {toasts.map((t) => (
+        <div key={t.id} className="card flex items-start gap-3 p-3 shadow-pop">
+          <BellRing className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-medium">{t.title}</p>
+            <p className="text-xs text-muted">
+              {t.leadExists ? (
+                <Link href={`/leads?lead=${t.leadId}`} className="underline underline-offset-2" onClick={() => setToasts((l) => l.filter((x) => x.id !== t.id))}>
+                  {t.leadName}
+                </Link>
+              ) : (
+                t.leadName
+              )}{" "}
+              · {formatDue(t.dueAt)}
+            </p>
+          </div>
+          <button className="text-muted hover:text-fg" onClick={() => setToasts((l) => l.filter((x) => x.id !== t.id))} aria-label="Cerrar aviso">
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}

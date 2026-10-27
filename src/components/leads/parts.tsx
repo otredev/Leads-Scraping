@@ -171,6 +171,12 @@ export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; 
       return crm.doNotContact ? <DncBadge reason={crm.doNotContact.reason} /> : nil;
     case "notes":
       return crm.notes?.length ? <span className="tabular-nums">{crm.notes.length}</span> : nil;
+    case "lastContactAt":
+      return crm.lastContactAt ? (
+        <span className="whitespace-nowrap text-fg-2">{new Date(crm.lastContactAt).toLocaleDateString("es")}</span>
+      ) : (
+        nil
+      );
     case "savedAt":
       return crm.savedAt ? <span className="whitespace-nowrap text-fg-2">{new Date(crm.savedAt).toLocaleDateString("es")}</span> : nil;
     case "reviewCount":

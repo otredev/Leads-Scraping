@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X } from "lucide-react";
+import { CalendarCheck, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X } from "lucide-react";
+import { taskBucket } from "@/core/calendar";
+import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
 import { ThemeButton, ThemeSwitch } from "./ThemeToggle";
 import { Skeleton } from "../ui";
@@ -13,6 +15,7 @@ const NAV = [
   { href: "/busquedas", label: "Búsquedas", Icon: Search },
   { href: "/resultados", label: "Resultados", Icon: ListFilter },
   { href: "/leads", label: "Leads", Icon: Users },
+  { href: "/tareas", label: "Tareas", Icon: CalendarCheck },
   { href: "/papelera", label: "Papelera", Icon: Trash2 },
   { href: "/ajustes", label: "Ajustes", Icon: Settings },
 ];
@@ -32,7 +35,8 @@ function Logo() {
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { searches, savedKeys } = useData();
+  const { searches, savedKeys, tasks } = useData();
+  const pending = tasks.filter((t) => ["overdue", "today"].includes(taskBucket(t))).length;
   const active = searches.filter((s) => s.status === "running" || s.status === "queued").length;
   return (
     <ul className="flex flex-col gap-1">
@@ -50,6 +54,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             >
               <Icon className="size-[18px]" aria-hidden />
               <span className="flex-1">{label}</span>
+              {href === "/tareas" && pending > 0 && (
+                <span className="badge bg-primary text-primary-fg" title={`${pending} vencidas o para hoy`}>
+                  {pending}
+                </span>
+              )}
               {href === "/leads" && savedKeys.size > 0 && (
                 <span className="text-xs tabular-nums text-muted">{savedKeys.size}</span>
               )}
@@ -167,6 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-[1400px]">
           <ErrorBanner />
           {children}
+          <TaskNotifier />
         </div>
       </main>
     </div>

@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { AtSign, Bookmark, Phone, Plus, Search as SearchIcon } from "lucide-react";
 import type { LeadStats } from "@/core/stats";
 import { useData } from "../data/DataProvider";
+import { taskBucket } from "@/core/calendar";
+import { TaskRow } from "../tasks/TaskParts";
+import { ColorDot } from "../leads/parts";
 import { BarList, ColumnChart, MeterRow } from "../charts";
 import {
   Card,
@@ -26,9 +29,97 @@ import {
 
 const dayFmt = new Intl.DateTimeFormat("es", { day: "numeric", month: "short", timeZone: "UTC" });
 
+interface Funnel {
+  stages: { id: string; name: string; color: string; count: number }[];
+  total: number;
+  contacted: number;
+  won?: { name: string; count: number };
+}
+
+type Stats = LeadStats & { saved: number; funnel: Funnel };
+
+/** Embudo: leads guardados por etapa, en el orden configurado. */
+function FunnelCard({ funnel }: { funnel: Funnel }) {
+  const max = Math.max(...funnel.stages.map((s) => s.count), 1);
+  return (
+    <Card
+      title="Embudo de conversión"
+      description="Leads guardados por etapa"
+      actions={
+        <Link href="/leads" className="btn btn-ghost btn-sm">
+          Ver leads
+        </Link>
+      }
+    >
+      {funnel.total === 0 ? (
+        <p className="hint">Guarda leads desde Resultados para ver el embudo.</p>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <ul className="flex flex-col gap-3">
+            {funnel.stages.map((st) => (
+              <li key={st.id} className="grid grid-cols-[minmax(0,8.5rem)_minmax(0,1fr)] items-center gap-3 text-[13px]">
+                <span className="flex items-center gap-2 truncate text-fg-2">
+                  <ColorDot color={st.color} /> {st.name}
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-3 rounded-r-[4px] bg-chart" style={{ width: `${Math.max((st.count / max) * 100, 1.5)}%`, maxWidth: "calc(100% - 5.5rem)" }} />
+                  <span className="whitespace-nowrap tabular-nums text-fg-2">
+                    {st.count} <span className="text-muted">· {pct(st.count, funnel.total)}%</span>
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="grid grid-cols-2 gap-3 border-t border-line pt-4">
+            <div>
+              <p className="text-2xl font-semibold">{pct(funnel.contacted, funnel.total)}%</p>
+              <p className="text-xs text-muted">contactados ({funnel.contacted} de {funnel.total})</p>
+            </div>
+            {funnel.won && (
+              <div>
+                <p className="text-2xl font-semibold">{pct(funnel.won.count, funnel.total)}%</p>
+                <p className="text-xs text-muted">
+                  en &ldquo;{funnel.won.name}&rdquo; ({funnel.won.count}), la última etapa
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Tareas vencidas y de hoy. */
+function TodayTasks() {
+  const { tasks } = useData();
+  const list = tasks.filter((t) => ["overdue", "today"].includes(taskBucket(t)));
+  return (
+    <Card
+      title="Tareas para hoy"
+      description={list.length ? `${list.length} pendientes, incluidas las vencidas` : "Nada pendiente"}
+      actions={
+        <Link href="/tareas" className="btn btn-ghost btn-sm">
+          Ver agenda
+        </Link>
+      }
+    >
+      {list.length ? (
+        <ul className="-mx-1 divide-y divide-line">
+          {list.slice(0, 6).map((t) => (
+            <TaskRow key={t.id} task={t} />
+          ))}
+        </ul>
+      ) : (
+        <p className="hint">Crea tareas desde la ficha de un lead: &ldquo;llamar mañana a las 10&rdquo;.</p>
+      )}
+    </Card>
+  );
+}
+
 export function Overview() {
   const { searches, loading } = useData();
-  const [stats, setStats] = useState<LeadStats & { saved: number }>();
+  const [stats, setStats] = useState<Stats>();
 
   // Recalcula cuando cambia el número de leads guardados.
   const leadSum = searches.reduce((n, s) => n + s.leadCount, 0);
@@ -36,7 +127,7 @@ export function Overview() {
     let cancelled = false;
     fetch("/api/stats", { cache: "no-store" })
       .then((r) => r.json())
-      .then((s: LeadStats & { saved: number }) => !cancelled && s && typeof s.total === "number" && setStats(s))
+      .then((s: Stats) => !cancelled && s && typeof s.total === "number" && setStats(s))
       .catch(() => undefined);
     return () => {
       cancelled = true;
@@ -106,6 +197,11 @@ export function Overview() {
           meter={s ? pct(s.withPhone, s.total) : 0}
           detail={s ? `${nf.format(s.withPhone)} negocios` : undefined}
         />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+        <FunnelCard funnel={s.funnel} />
+        <TodayTasks />
       </div>
 
       {active.length > 0 && (
@@ -258,6 +354,21 @@ function OverviewSkeleton() {
         {Array.from({ length: 4 }, (_, i) => (
           <StatCardSkeleton key={i} />
         ))}
+      </div>
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
+        <Card title="Embudo de conversión" description="Leads guardados por etapa">
+          <div className="flex flex-col gap-3.5">
+            {[80, 60, 35, 15].map((w) => (
+              <div key={w} className="grid grid-cols-[8.5rem_1fr] items-center gap-3">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-3" style={{ width: `${w}%` }} />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card title="Tareas para hoy">
+          <ListSkeleton rows={4} />
+        </Card>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
         <Card className="xl:col-span-2" title="Negocios extraídos" description="Últimos 14 días">

@@ -5,7 +5,9 @@ import { AtSign, Ban, ExternalLink, Globe, MapPin, Pencil, Phone, RefreshCw, Tra
 import type { SavedLead } from "@/core/lead";
 import type { CrmSettings, LeadUpdate, Tag } from "@/core/crm";
 import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
-import { api, postJson } from "../data/DataProvider";
+import { api, postJson, useData } from "../data/DataProvider";
+import { TaskForm, TaskRow } from "../tasks/TaskParts";
+import { ContactPanel } from "./ContactPanel";
 import { Skeleton } from "../ui";
 import { NewTagInput } from "./BulkBar";
 import { ColorDot, ColorPicker, DncBadge, HoursAndReviews, TagChip, hostname } from "./parts";
@@ -50,6 +52,10 @@ export function LeadDrawer({
   const [loadingFresh, setLoadingFresh] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const { tasks } = useData();
+  const leadTasks = tasks
+    .filter((t) => t.leadId === initial.id)
+    .sort((a, b) => Number(a.done) - Number(b.done) || a.dueAt.localeCompare(b.dueAt));
 
   // Datos frescos del servidor y foco inicial.
   useEffect(() => {
@@ -137,7 +143,22 @@ export function LeadDrawer({
           </div>
         </div>
 
-        <Section title="Contacto">
+        <Section title="Contactar">
+          <ContactPanel lead={lead} settings={settings} onLog={patch} />
+        </Section>
+
+        <Section title={`Tareas${leadTasks.filter((t) => !t.done).length ? ` (${leadTasks.filter((t) => !t.done).length} pendientes)` : ""}`}>
+          <TaskForm leadId={lead.id} />
+          {leadTasks.length > 0 && (
+            <ul className="-mx-1 divide-y divide-line">
+              {leadTasks.map((t) => (
+                <TaskRow key={t.id} task={t} lead={lead} showLead={false} />
+              ))}
+            </ul>
+          )}
+        </Section>
+
+        <Section title="Datos de contacto">
           <ul className="flex flex-col gap-1.5 text-sm">
             {lead.phone && (
               <li className="flex items-center gap-2">

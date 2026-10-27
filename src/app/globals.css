@@ -184,3 +184,33 @@
     animation: none !important;
   }
 }
+
+/* Mapa (Leaflet): teselas en escala de grises para encajar con el tema; invertidas en oscuro. */
+.leaflet-tile-pane {
+  filter: grayscale(1) contrast(0.95);
+}
+[data-theme="dark"] .leaflet-tile-pane {
+  filter: grayscale(1) invert(1) brightness(0.85) contrast(0.9);
+}
+.leaflet-container {
+  font-family: inherit;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--pop-shadow);
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--muted);
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  color: var(--muted);
+}
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--fg-2);
+}
+.leaflet-attribution-flag {
+  display: none !important;
+}

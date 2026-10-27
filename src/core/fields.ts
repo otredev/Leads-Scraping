@@ -190,6 +190,14 @@ function crmFields(settings: CrmSettings): LeadField[] {
       defaultVisible: false,
     },
     {
+      key: "lastContactAt",
+      label: "Último contacto",
+      kind: "text",
+      value: (l) => saved(l).lastContactAt,
+      format: (l) => saved(l).lastContactAt ?? "",
+      defaultVisible: false,
+    },
+    {
       key: "savedAt",
       label: "Guardado",
       kind: "text",

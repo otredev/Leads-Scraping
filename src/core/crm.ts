@@ -47,13 +47,79 @@ export interface DoNotContact {
 }
 
 /** Campos que el usuario gestiona sobre un lead guardado. */
+export type ContactChannel = "whatsapp" | "call" | "email" | "copy-phone" | "copy-email";
+
+export const CONTACT_CHANNELS: Record<ContactChannel, string> = {
+  whatsapp: "WhatsApp",
+  call: "Llamada",
+  email: "Email",
+  "copy-phone": "Teléfono copiado",
+  "copy-email": "Email copiado",
+};
+
+/** Registro de un intento de contacto (botones de contacto rápido). */
+export interface ContactLog {
+  id: string;
+  channel: ContactChannel;
+  at: string;
+  /** Plantilla usada, si la hubo. */
+  template?: string;
+}
+
 export interface CrmFields {
   stage: string;
   tags: string[];
   color?: LabelColor;
   notes: Note[];
   doNotContact?: DoNotContact;
+  /** Historial de contactos (más reciente primero). */
+  contacts?: ContactLog[];
+  lastContactAt?: string;
 }
+
+// ── Tareas ──
+
+export interface Task {
+  id: string;
+  leadId: string;
+  /** Copia del nombre del lead para listarlas sin cargar el lead. */
+  leadName: string;
+  title: string;
+  /** Fecha y hora (ISO). */
+  dueAt: string;
+  done: boolean;
+  doneAt?: string;
+  createdAt: string;
+}
+
+// ── Plantillas de mensaje ──
+
+export type TemplateChannel = "whatsapp" | "email";
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  channel: TemplateChannel;
+  /** Solo email. */
+  subject?: string;
+  body: string;
+}
+
+export const DEFAULT_TEMPLATES: MessageTemplate[] = [
+  {
+    id: "presentacion-whatsapp",
+    name: "Presentación",
+    channel: "whatsapp",
+    body: "Hola, ¿hablo con {nombre}? Vi vuestra ficha de {categoria} en Google Maps y quería comentaros una idea para conseguir más clientes. ¿Os viene bien que os lo cuente en 2 minutos?",
+  },
+  {
+    id: "presentacion-email",
+    name: "Presentación",
+    channel: "email",
+    subject: "Una idea para {nombre}",
+    body: "Hola,\n\nHe visto vuestra ficha de {categoria} en Google Maps ({valoracion}★ con {resenas} reseñas) y creo que puedo ayudaros a conseguir más clientes.\n\n¿Tenéis 10 minutos esta semana para una llamada?\n\nUn saludo",
+  },
+];
 
 // ── Preferencias de tabla (filtros predeterminados y columnas) ──
 
@@ -76,6 +142,7 @@ export interface CrmSettings {
   /** Valoración por debajo de la cual se marca "Valoración baja". */
   lowRating: number;
   tables: Partial<Record<TableId, TablePrefs>>;
+  templates: MessageTemplate[];
 }
 
 export const DEFAULT_STAGES: Stage[] = [
@@ -93,6 +160,7 @@ export const DEFAULT_SETTINGS: CrmSettings = {
   tags: [],
   lowRating: 3.5,
   tables: {},
+  templates: [],
 };
 
 export function withDefaults(s: Partial<CrmSettings> | undefined): CrmSettings {
@@ -101,6 +169,7 @@ export function withDefaults(s: Partial<CrmSettings> | undefined): CrmSettings {
     tags: s?.tags ?? [],
     lowRating: typeof s?.lowRating === "number" ? s.lowRating : DEFAULT_SETTINGS.lowRating,
     tables: s?.tables ?? {},
+    templates: s?.templates ?? DEFAULT_TEMPLATES,
   };
 }
 
@@ -148,6 +217,8 @@ export interface LeadUpdate {
   addNote?: string;
   updateNote?: { id: string; text: string };
   deleteNote?: string;
+  /** Registra un contacto (WhatsApp, llamada, email…). */
+  logContact?: { channel: ContactChannel; template?: string };
 }
 
 /** Aplica una actualización en memoria (usado por json-file y por la UI optimista). */
@@ -169,6 +240,11 @@ export function applyLeadUpdate<T extends CrmFields>(lead: T, u: LeadUpdate, now
     );
   }
   if (u.deleteNote) next.notes = next.notes.filter((n) => n.id !== u.deleteNote);
+  if (u.logContact) {
+    const entry: ContactLog = { id: newId(), channel: u.logContact.channel, at: now, ...(u.logContact.template ? { template: u.logContact.template } : {}) };
+    next.contacts = [entry, ...(lead.contacts ?? [])].slice(0, 200);
+    next.lastContactAt = now;
+  }
   return next;
 }
 
@@ -200,6 +276,13 @@ export function sanitizeUpdate(raw: unknown, settings: CrmSettings): LeadUpdate 
     out.updateNote = { id: un.id, text: un.text.slice(0, 5000) };
   }
   if (typeof r.deleteNote === "string") out.deleteNote = r.deleteNote;
+  const lc = r.logContact as { channel?: unknown; template?: unknown } | undefined;
+  if (lc && typeof lc.channel === "string" && lc.channel in CONTACT_CHANNELS) {
+    out.logContact = {
+      channel: lc.channel as ContactChannel,
+      ...(typeof lc.template === "string" && lc.template ? { template: lc.template.slice(0, 80) } : {}),
+    };
+  }
   return out;
 }
 
@@ -212,6 +295,7 @@ export function mergeSettings(current: CrmSettings, incoming: Partial<CrmSetting
     ...current,
     stages: [...current.stages, ...inc.stages.filter((s) => !stageIds.has(s.id))],
     tags: [...current.tags, ...inc.tags.filter((t) => !tagIds.has(t.id))],
+    templates: [...current.templates, ...inc.templates.filter((t) => !current.templates.some((c) => c.id === t.id))],
     tables: { ...inc.tables, ...current.tables },
   };
 }

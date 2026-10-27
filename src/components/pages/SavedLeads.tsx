@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Columns3 as BoardIcon, FileUp, List, Table2 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Columns3 as BoardIcon, FileUp, List, Map as MapIcon, Table2 } from "lucide-react";
 import type { Search } from "@/core/search";
 import type { SavedLead } from "@/core/lead";
 import { applyLeadUpdate, type CrmSettings, type LeadUpdate, type Tag } from "@/core/crm";
@@ -12,17 +13,19 @@ import { BulkBar } from "../leads/BulkBar";
 import { LeadDrawer } from "../leads/LeadDrawer";
 import { ImportDialog, type ImportResult } from "../leads/ImportDialog";
 import { ListView } from "../leads/ListView";
+import { MapView } from "../leads/MapView";
 import { LeadsTableView, NoMatches, TableSkeleton } from "../leads/Table";
 import { LeadsToolbar } from "../leads/Toolbar";
 import { useLeadView } from "../leads/useLeadView";
 import { EmptyState, Notice, PageHeader } from "../ui";
 
-type ViewMode = "table" | "list" | "board";
+type ViewMode = "table" | "list" | "board" | "map";
 const VIEW_KEY = "leads-view";
 const VIEWS: { id: ViewMode; label: string; Icon: typeof List }[] = [
   { id: "table", label: "Tabla", Icon: Table2 },
   { id: "list", label: "Lista", Icon: List },
   { id: "board", label: "Tablero", Icon: BoardIcon },
+  { id: "map", label: "Mapa", Icon: MapIcon },
 ];
 
 // Vista elegida: preferencia de este navegador (localStorage), sin parpadeo.
@@ -30,7 +33,7 @@ const viewListeners = new Set<() => void>();
 function readView(): ViewMode {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    return v === "list" || v === "board" ? v : "table";
+    return v === "list" || v === "board" || v === "map" ? v : "table";
   } catch {
     return "table";
   }
@@ -248,7 +251,17 @@ function LeadsBody({
 }) {
   const { modules, patchSettings } = useData();
   const view = useLeadView("saved", leads, settings);
-  const [openId, setOpenId] = useState<string>();
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const requested = params.get("lead") ?? undefined;
+  const [picked, setPicked] = useState<string>();
+  // Ficha abierta: la elegida aquí o la pedida por URL (?lead=, desde Tareas o un aviso).
+  const openId = picked ?? requested;
+  const setOpenId = (id: string | undefined) => {
+    setPicked(id);
+    if (!id && requested) router.replace(pathname, { scroll: false });
+  };
   const open = leads.find((l) => l.id === openId);
   const rows = view.rows as SavedLead[];
 
@@ -288,7 +301,7 @@ function LeadsBody({
             await patchSettings({ table: "saved", prefs: view.currentPrefs() });
           }}
         />
-        {mode !== "board" && (
+        {mode !== "board" && mode !== "map" && (
           <BulkBar
             view={view}
             settings={settings}
@@ -308,6 +321,8 @@ function LeadsBody({
             loading={false} settings={settings} onTrash={onTrash} onOpen={(l) => setOpenId(l.id)} empty={empty} />
         )}
         {mode === "list" && (rows.length ? <ListView view={view} leads={rows} settings={settings} onOpen={(l) => setOpenId(l.id)} /> : <div className="p-5">{empty}</div>)}
+        {mode === "map" &&
+          (rows.length ? <MapView leads={rows} settings={settings} onOpen={(l) => setOpenId(l.id)} /> : <div className="p-5">{empty}</div>)}
         {mode === "board" &&
           (leads.length ? (
             <Board leads={rows} settings={settings} onMove={(id, stage) => onUpdate([id], { stage })} onOpen={(l) => setOpenId(l.id)} />
