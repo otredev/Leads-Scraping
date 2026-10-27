@@ -1,6 +1,8 @@
-import { MongoClient, type AnyBulkWriteOperation, type Db } from "mongodb";
+import { randomUUID } from "node:crypto";
+import { MongoClient, type AnyBulkWriteOperation, type Db, type UpdateFilter } from "mongodb";
+import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate } from "@/core/crm";
 import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "@/core/storage";
-import { dedupeLeads, leadDedupeKey, normalizeLead, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
+import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
 
 /**
@@ -13,6 +15,7 @@ import type { Search } from "@/core/search";
  *   searches  historial de búsquedas
  *   results   resultados de cada búsqueda (único por búsqueda + negocio)
  *   leads     leads guardados (único por negocio), con papelera
+ *   settings  etapas, etiquetas y preferencias del CRM (documento "crm")
  *
  * La papelera usa un índice TTL sobre `purgeAt`: MongoDB borra solo los
  * documentos caducados. Además se purgan desde la app por si el servidor no
@@ -79,6 +82,8 @@ async function ensureIndexes(d: Db) {
   await d.collection("results").createIndex({ searchId: 1, key: 1 }, { unique: true });
   await d.collection("leads").createIndex({ key: 1 }, { unique: true });
   await d.collection("leads").createIndex({ deletedAt: 1 });
+  await d.collection("leads").createIndex({ stage: 1 });
+  await d.collection("leads").createIndex({ tags: 1 });
   try {
     await d.collection("leads").createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 });
   } catch {
@@ -89,6 +94,7 @@ async function ensureIndexes(d: Db) {
 const searches = async () => (await db()).collection<Doc<Search>>("searches");
 const results = async () => (await db()).collection<ResultDoc>("results");
 const leads = async () => (await db()).collection<SavedDoc>("leads");
+const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
 
 function fromDoc<T>(doc: Doc<T> | null | undefined): T | undefined {
   if (!doc) return undefined;
@@ -105,8 +111,7 @@ function stripKey(doc: ResultDoc): Lead {
 function savedFromDoc(doc: SavedDoc): SavedLead {
   const lead = fromDoc<SavedLead>(doc as unknown as Doc<SavedLead>) as SavedLead & { deletedAt?: unknown; purgeAt?: unknown };
   return {
-    ...normalizeLead(lead),
-    searchIds: lead.searchIds ?? [],
+    ...normalizeSaved(lead as SavedLead),
     deletedAt: doc.deletedAt ? doc.deletedAt.toISOString() : undefined,
     purgeAt: doc.purgeAt ? doc.purgeAt.toISOString() : undefined,
   };
@@ -211,7 +216,15 @@ class MongoStore implements LeadStore {
           $set: clean({ ...pickLeadData(lead), updatedAt: lead.updatedAt }) as Partial<SavedDoc>,
           $unset: { deletedAt: "", purgeAt: "" },
           $addToSet: { searchIds: { $each: lead.searchIds } },
-          $setOnInsert: { _id: lead.id, key: lead.key, savedAt: lead.savedAt, searchId: lead.searchId },
+          $setOnInsert: {
+            _id: lead.id,
+            key: lead.key,
+            savedAt: lead.savedAt,
+            searchId: lead.searchId,
+            stage: lead.stage,
+            tags: lead.tags ?? [],
+            notes: lead.notes ?? [],
+          },
         },
         upsert: true,
       },
@@ -260,6 +273,80 @@ class MongoStore implements LeadStore {
     return res.deletedCount;
   }
 
+  async getSavedLead(id: string) {
+    const doc = await (await leads()).findOne({ _id: id });
+    return doc ? savedFromDoc(doc) : undefined;
+  }
+
+  async updateLeads(ids: string[], u: LeadUpdate) {
+    if (!ids.length) return 0;
+    const col = await leads();
+    const now = new Date().toISOString();
+
+    // Notas: lectura-modificación-escritura (son siempre de un solo lead).
+    if (u.addNote || u.updateNote || u.deleteNote) {
+      let n = 0;
+      for (const id of ids) {
+        const doc = await col.findOne({ _id: id });
+        if (!doc) continue;
+        const next = applyLeadUpdate(savedFromDoc(doc), u, now, randomUUID);
+        await col.updateOne({ _id: id }, { $set: { notes: next.notes, updatedAt: now } });
+        n++;
+      }
+      if (!u.stage && u.color === undefined && !u.addTags && !u.removeTags && u.doNotContact === undefined) return n;
+    }
+
+    // Resto: una sola operación masiva.
+    const set: Record<string, unknown> = { updatedAt: now };
+    const unset: Record<string, ""> = {};
+    if (u.stage) set.stage = u.stage;
+    if (u.color === null) unset.color = "";
+    else if (u.color) set.color = u.color;
+    if (u.doNotContact === false) unset.doNotContact = "";
+    else if (u.doNotContact) {
+      set.doNotContact = {
+        at: now,
+        ...(typeof u.doNotContact === "string" && u.doNotContact.trim() ? { reason: u.doNotContact.trim() } : {}),
+      };
+    }
+    const update: UpdateFilter<SavedDoc> = { $set: set as Partial<SavedDoc> };
+    if (Object.keys(unset).length) update.$unset = unset;
+    if (u.addTags?.length) update.$addToSet = { tags: { $each: u.addTags } } as UpdateFilter<SavedDoc>["$addToSet"];
+    let res = await col.updateMany({ _id: { $in: ids } }, update);
+    // MongoDB no permite $addToSet y $pull sobre el mismo campo a la vez.
+    // Un $pull por etiqueta: compatible con servidores que no admiten $pull + $in.
+    for (const tag of u.removeTags ?? []) {
+      res = await col.updateMany({ _id: { $in: ids } }, { $pull: { tags: tag } } as UpdateFilter<SavedDoc>);
+    }
+    return res.matchedCount;
+  }
+
+  async reassignStage(from: string, to: string) {
+    const res = await (await leads()).updateMany({ stage: from }, { $set: { stage: to } });
+    return res.modifiedCount;
+  }
+
+  async removeTag(tagId: string) {
+    const res = await (await leads()).updateMany({ tags: tagId }, {
+      $pull: { tags: tagId },
+    } as UpdateFilter<SavedDoc>);
+    return res.modifiedCount;
+  }
+
+  // ── Ajustes del CRM ──
+
+  async getSettings() {
+    const doc = await (await settingsCol()).findOne({ _id: "crm" });
+    if (!doc) return withDefaults(undefined);
+    const { _id: _ignored, ...rest } = doc;
+    void _ignored;
+    return withDefaults(rest);
+  }
+
+  async saveSettings(settings: CrmSettings) {
+    await (await settingsCol()).replaceOne({ _id: "crm" }, { ...settings }, { upsert: true });
+  }
+
   // ── Copia de seguridad ──
 
   async exportAll(): Promise<Backup> {
@@ -275,6 +362,7 @@ class MongoStore implements LeadStore {
       searches: s,
       results: r.map(stripKey),
       leads: l.map(savedFromDoc),
+      settings: await this.getSettings(),
     };
   }
 
@@ -311,6 +399,7 @@ class MongoStore implements LeadStore {
       );
       summary.leads = res.upsertedCount;
     }
+    if (backup.settings) await this.saveSettings(mergeSettings(await this.getSettings(), backup.settings));
     return summary;
   }
 }

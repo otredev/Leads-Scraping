@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { Lead } from "@/core/lead";
+import { BookmarkPlus } from "lucide-react";
+import { leadDedupeKey, type Lead } from "@/core/lead";
+import type { CrmSettings } from "@/core/crm";
 import { api, postJson, useData } from "../data/DataProvider";
-import { LeadsTable } from "../LeadsTable";
-import { Notice, PageHeader, ProgressBar, Skeleton, StatusBadge } from "../ui";
+import { BulkBar } from "../leads/BulkBar";
+import { LeadsTableView, NoMatches, TableSkeleton } from "../leads/Table";
+import { LeadsToolbar } from "../leads/Toolbar";
+import { useLeadView } from "../leads/useLeadView";
+import type { ExporterInfo } from "../types";
+import { EmptyState, Notice, PageHeader, ProgressBar, Skeleton, StatusBadge } from "../ui";
 
 interface SaveResult {
   created: number;
@@ -15,7 +21,7 @@ interface SaveResult {
 
 /** Resultados de búsqueda: lo que devuelve el scraper. Desde aquí se guardan en Leads. */
 export function Results() {
-  const { modules, searches, savedKeys, refreshSaved, loading: dataLoading } = useData();
+  const { modules, searches, savedKeys, dncKeys, settings, refreshSaved, loading: dataLoading } = useData();
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -121,16 +127,103 @@ export function Results() {
         </div>
       )}
 
-      <LeadsTable
-        key={selected}
-        mode="results"
-        leads={leads}
-        searchId={selected}
-        exporters={modules?.exporters ?? []}
-        loading={loading}
-        savedKeys={savedKeys}
-        onSave={save}
-      />
+      {settings ? (
+        <ResultsBody
+          key={selected}
+          leads={leads}
+          loading={loading}
+          searchId={selected}
+          settings={settings}
+          savedKeys={savedKeys}
+          dncKeys={dncKeys}
+          exporters={modules?.exporters ?? []}
+          onSave={save}
+        />
+      ) : (
+        <section className="card">
+          <TableSkeleton />
+        </section>
+      )}
     </>
+  );
+}
+
+function ResultsBody({
+  leads,
+  loading,
+  searchId,
+  settings,
+  savedKeys,
+  dncKeys,
+  exporters,
+  onSave,
+}: {
+  leads: Lead[];
+  loading: boolean;
+  searchId: string;
+  settings: CrmSettings;
+  savedKeys: Set<string>;
+  dncKeys: Set<string>;
+  exporters: ExporterInfo[];
+  onSave(ids: string[]): Promise<void>;
+}) {
+  const { patchSettings } = useData();
+  const view = useLeadView("results", leads, settings);
+  const [busy, setBusy] = useState(false);
+  const unsaved = view.rows.filter((l) => !savedKeys.has(leadDedupeKey(l)));
+
+  return (
+    <section className="card" aria-label="Resultados">
+      <LeadsToolbar
+        view={view}
+        leads={leads}
+        settings={settings}
+        exporters={exporters}
+        searchId={searchId}
+        onColumnsChange={(columns) => {
+          view.setColumns(columns);
+          void patchSettings({ table: "results", prefs: { ...view.defaults, columns } });
+        }}
+        onSaveDefaults={async () => {
+          await patchSettings({ table: "results", prefs: { filters: view.filters, sort: view.sort, columns: view.columns } });
+        }}
+        extra={
+          <button
+            className="btn btn-sm"
+            disabled={!unsaved.length || busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await onSave(unsaved.map((l) => l.id));
+              } finally {
+                setBusy(false);
+              }
+            }}
+            title="Guarda en Leads todos los resultados que coinciden con los filtros (todas las páginas)"
+          >
+            <BookmarkPlus className="size-4" aria-hidden />
+            {busy ? "Guardando…" : unsaved.length ? `Guardar ${unsaved.length} ${unsaved.length === 1 ? "visible" : "visibles"}` : "Todo guardado"}
+          </button>
+        }
+      />
+      <BulkBar view={view} settings={settings} onSave={async (ids) => onSave(ids)} />
+      <LeadsTableView
+        view={view}
+        loading={loading}
+        settings={settings}
+        savedKeys={savedKeys}
+        dncKeys={dncKeys}
+        onSave={onSave}
+        empty={
+          leads.length === 0 ? (
+            <EmptyState title="Todavía no hay resultados aquí">
+              Lanza una búsqueda desde la sección Búsquedas. Con gosom, los resultados tardan unos minutos en llegar.
+            </EmptyState>
+          ) : (
+            <NoMatches onClear={view.clearFilters} />
+          )
+        }
+      />
+    </section>
   );
 }

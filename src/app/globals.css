@@ -36,6 +36,16 @@
   --warning-soft: #f7f2e6;
   --danger: #b0413e;
   --danger-soft: #f8ecec;
+  /* Colores de etiqueta (etapas, etiquetas y color de lead). Siempre con nombre visible. */
+  --label-gray: #8c8c8c;
+  --label-blue: #2a78d6;
+  --label-orange: #eb6834;
+  --label-aqua: #1baf7a;
+  --label-yellow: #eda100;
+  --label-magenta: #e87ba4;
+  --label-green: #008300;
+  --label-violet: #6250d6;
+  --label-red: #e34948;
   --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 2px 6px rgb(0 0 0 / 0.03);
   --pop-shadow: 0 12px 32px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
   color-scheme: light;
@@ -64,6 +74,15 @@
   --warning-soft: #26210f;
   --danger: #e08482;
   --danger-soft: #2a1717;
+  --label-gray: #8a8a8a;
+  --label-blue: #3987e5;
+  --label-orange: #d95926;
+  --label-aqua: #199e70;
+  --label-yellow: #c98500;
+  --label-magenta: #d55181;
+  --label-green: #008300;
+  --label-violet: #9085e9;
+  --label-red: #e66767;
   --card-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
   --pop-shadow: 0 16px 40px rgb(0 0 0 / 0.6);
   color-scheme: dark;

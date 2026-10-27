@@ -1,3 +1,5 @@
+import type { CrmFields } from "./crm";
+
 /**
  * Modelo normalizado de un lead.
  *
@@ -69,6 +71,17 @@ export function normalizeLead<T extends Lead>(lead: T): T {
   return { ...lead, emails: lead.emails ?? [], reviews: lead.reviews ?? [], extra: lead.extra ?? {} };
 }
 
+/** Completa los campos del CRM en leads guardados antes de la fase 2. */
+export function normalizeSaved(lead: SavedLead): SavedLead {
+  return {
+    ...normalizeLead(lead),
+    searchIds: lead.searchIds ?? [],
+    stage: lead.stage ?? "lead",
+    tags: lead.tags ?? [],
+    notes: lead.notes ?? [],
+  };
+}
+
 /** Quita duplicados (p. ej. el mismo negocio en dos búsquedas), conservando el más reciente. */
 export function dedupeLeads(leads: Lead[]): Lead[] {
   const byKey = new Map<string, Lead>();
@@ -91,7 +104,7 @@ export function leadDedupeKey(lead: Pick<Lead, "externalId" | "name" | "address"
  * Se identifica por `key` (la misma clave de deduplicación), así que guardar el
  * mismo negocio desde otra búsqueda actualiza sus datos en lugar de duplicarlo.
  */
-export interface SavedLead extends Lead {
+export interface SavedLead extends Lead, CrmFields {
   key: string;
   /** Búsquedas de las que se ha guardado. */
   searchIds: string[];

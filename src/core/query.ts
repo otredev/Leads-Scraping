@@ -1,5 +1,6 @@
-import type { Lead } from "./lead";
-import { getField } from "./fields";
+import type { Lead, SavedLead } from "./lead";
+import { LEAD_FIELDS, type LeadField } from "./fields";
+import { autoTags, isAutoTag, leadScore } from "./score";
 
 /**
  * Filtros y orden de leads. Es código puro: lo usan tanto la tabla (cliente)
@@ -13,6 +14,20 @@ export interface LeadFilters {
   hasEmail?: boolean;
   hasPhone?: boolean;
   hasWebsite?: boolean;
+  minScore?: number;
+  /** Etiqueta (manual o automática "auto:…"). */
+  tag?: string;
+  // Solo leads guardados:
+  stage?: string;
+  color?: string;
+  /** "hide": oculta los marcados "no contactar"; "only": solo esos. */
+  dnc?: "hide" | "only";
+}
+
+/** Contexto necesario para algunos filtros (umbral de valoración baja). */
+export interface QueryContext {
+  lowRating?: number;
+  fields?: LeadField[];
 }
 
 export interface LeadSort {
@@ -20,7 +35,7 @@ export interface LeadSort {
   dir: "asc" | "desc";
 }
 
-export function filterLeads(leads: Lead[], f: LeadFilters): Lead[] {
+export function filterLeads<T extends Lead>(leads: T[], f: LeadFilters, ctx: QueryContext = {}): T[] {
   const q = f.q?.trim().toLowerCase();
   return leads.filter((l) => {
     if (q) {
@@ -36,13 +51,25 @@ export function filterLeads(leads: Lead[], f: LeadFilters): Lead[] {
     if (f.hasEmail && l.emails.length === 0) return false;
     if (f.hasPhone && !l.phone) return false;
     if (f.hasWebsite && !l.website) return false;
+    if (f.minScore !== undefined && leadScore(l) < f.minScore) return false;
+    const crm = l as Partial<SavedLead>;
+    if (f.tag) {
+      const has = isAutoTag(f.tag)
+        ? (autoTags(l, ctx.lowRating) as string[]).includes(f.tag)
+        : (crm.tags ?? []).includes(f.tag);
+      if (!has) return false;
+    }
+    if (f.stage && crm.stage !== f.stage) return false;
+    if (f.color && (f.color === "none" ? Boolean(crm.color) : crm.color !== f.color)) return false;
+    if (f.dnc === "hide" && crm.doNotContact) return false;
+    if (f.dnc === "only" && !crm.doNotContact) return false;
     return true;
   });
 }
 
-export function sortLeads(leads: Lead[], sort?: LeadSort): Lead[] {
+export function sortLeads<T extends Lead>(leads: T[], sort?: LeadSort, fields: LeadField[] = LEAD_FIELDS): T[] {
   if (!sort) return leads;
-  const field = getField(sort.field);
+  const field = fields.find((f) => f.key === sort.field);
   if (!field) return leads;
   const mul = sort.dir === "asc" ? 1 : -1;
   return [...leads].sort((a, b) => {
@@ -59,9 +86,13 @@ export function sortLeads(leads: Lead[], sort?: LeadSort): Lead[] {
   });
 }
 
-export function queryLeads(leads: Lead[], filters: LeadFilters, sort?: LeadSort): Lead[] {
-  return sortLeads(filterLeads(leads, filters), sort);
+export function queryLeads<T extends Lead>(leads: T[], filters: LeadFilters, sort?: LeadSort, ctx: QueryContext = {}): T[] {
+  return sortLeads(filterLeads(leads, filters, ctx), sort, ctx.fields);
 }
+
+const NUM_KEYS = ["minRating", "minReviews", "minScore"] as const;
+const BOOL_KEYS = ["hasEmail", "hasPhone", "hasWebsite"] as const;
+const STR_KEYS = ["q", "category", "tag", "stage", "color"] as const;
 
 /** Serializa filtros y orden a parámetros de URL (para la exportación). */
 export function toSearchParams(filters: LeadFilters, sort?: LeadSort): URLSearchParams {
@@ -84,18 +115,26 @@ export function fromSearchParams(p: URLSearchParams): { filters: LeadFilters; so
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
   };
-  const filters: LeadFilters = {
-    q: p.get("q") ?? undefined,
-    category: p.get("category") ?? undefined,
-    minRating: num("minRating"),
-    minReviews: num("minReviews"),
-    hasEmail: p.get("hasEmail") === "true",
-    hasPhone: p.get("hasPhone") === "true",
-    hasWebsite: p.get("hasWebsite") === "true",
-  };
+  const filters: LeadFilters = {};
+  for (const k of STR_KEYS) if (p.get(k)) filters[k] = p.get(k) as string;
+  for (const k of NUM_KEYS) filters[k] = num(k);
+  for (const k of BOOL_KEYS) if (p.get(k) === "true") filters[k] = true;
+  const dnc = p.get("dnc");
+  if (dnc === "hide" || dnc === "only") filters.dnc = dnc;
   const field = p.get("sort");
   const sort: LeadSort | undefined = field
     ? { field, dir: p.get("dir") === "desc" ? "desc" : "asc" }
     : undefined;
   return { filters, sort };
+}
+
+/** Normaliza filtros guardados (descarta claves desconocidas o vacías). */
+export function cleanFilters(f: unknown): LeadFilters {
+  const raw = (f ?? {}) as Record<string, unknown>;
+  const out: LeadFilters = {};
+  for (const k of STR_KEYS) if (typeof raw[k] === "string" && raw[k]) out[k] = raw[k] as string;
+  for (const k of NUM_KEYS) if (typeof raw[k] === "number" && Number.isFinite(raw[k])) out[k] = raw[k] as number;
+  for (const k of BOOL_KEYS) if (raw[k] === true) out[k] = true;
+  if (raw.dnc === "hide" || raw.dnc === "only") out.dnc = raw.dnc;
+  return out;
 }

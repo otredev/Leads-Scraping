@@ -4,6 +4,7 @@ import { Database, Download, RefreshCw, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import type { ImportSummary } from "@/core/storage";
 import { api, useData } from "../data/DataProvider";
+import { CrmSettingsCard } from "../settings/CrmSettingsCard";
 import { Card, Loading, Notice, PageHeader, Skeleton } from "../ui";
 
 function Code({ children }: { children: React.ReactNode }) {
@@ -120,7 +121,7 @@ function SkeletonCards({ titles }: { titles: string[] }) {
 }
 
 export function Settings() {
-  const { modules, refreshModules, refreshSearches, refreshSaved } = useData();
+  const { modules, settings, refreshModules, refreshSearches, refreshSaved, refreshSettings } = useData();
   const [checking, setChecking] = useState(false);
 
   async function recheck() {
@@ -151,6 +152,7 @@ export function Settings() {
         <Loading label="Cargando ajustes…">
           <div className="flex flex-col gap-5">
             <SkeletonCards titles={["Base de datos", "Copia de seguridad"]} />
+            <SkeletonCards titles={["Etapas y etiquetas"]} />
             <Card title="Proveedores" description="Herramientas que extraen los datos">
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {[0, 1].map((i) => (
@@ -212,9 +214,15 @@ export function Settings() {
               onDone={() => {
                 void refreshSearches();
                 void refreshSaved();
+                void refreshSettings();
               }}
             />
           </div>
+          {settings ? (
+            <CrmSettingsCard key={JSON.stringify([settings.stages, settings.tags, settings.lowRating])} settings={settings} />
+          ) : (
+            <SkeletonCards titles={["Etapas y etiquetas"]} />
+          )}
 
           <Card title="Proveedores" description="Herramientas que extraen los datos" bodyClassName="px-5 pb-5">
             <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">

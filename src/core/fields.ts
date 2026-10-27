@@ -1,4 +1,7 @@
-import type { Lead } from "./lead";
+import type { Lead, SavedLead } from "./lead";
+import type { CrmSettings, TableId } from "./crm";
+import { LABEL_COLORS } from "./crm";
+import { AUTO_TAGS, autoTags, leadScore } from "./score";
 
 /**
  * Catálogo de campos de un lead: define columnas de la tabla, ordenación y
@@ -8,7 +11,7 @@ import type { Lead } from "./lead";
 export interface LeadField {
   key: string;
   label: string;
-  kind: "text" | "number" | "url" | "list" | "hours" | "reviews";
+  kind: "text" | "number" | "url" | "list" | "hours" | "reviews" | "tags";
   /** Valor para ordenar/filtrar. */
   value(lead: Lead): string | number | undefined;
   /** Texto plano para exportar o mostrar. */
@@ -76,6 +79,15 @@ export const LEAD_FIELDS: LeadField[] = [
     defaultVisible: true,
   },
   {
+    key: "score",
+    label: "Puntuación",
+    kind: "number",
+    value: (l) => leadScore(l),
+    format: (l) => String(leadScore(l)),
+    defaultVisible: true,
+  },
+  autoTagsField(3.5),
+  {
     key: "openingHours",
     label: "Horario",
     kind: "hours",
@@ -113,6 +125,98 @@ export const LEAD_FIELDS: LeadField[] = [
   { key: "collectedAt", label: "Fecha de extracción", kind: "text", value: (l) => l.collectedAt, format: (l) => l.collectedAt, defaultVisible: false },
 ];
 
-export function getField(key: string): LeadField | undefined {
-  return LEAD_FIELDS.find((f) => f.key === key);
+function autoTagsField(lowRating: number): LeadField {
+  const names = (l: Lead) => autoTags(l, lowRating).map((id) => AUTO_TAGS.find((t) => t.id === id)!.name);
+  return {
+    key: "autoTags",
+    label: "Etiquetas auto",
+    kind: "tags",
+    value: (l) => names(l).join(", ") || undefined,
+    format: (l) => names(l).join(", "),
+    defaultVisible: false,
+  };
+}
+
+const saved = (l: Lead) => l as Partial<SavedLead>;
+
+/** Campos del CRM (solo leads guardados). Necesitan los nombres de etapas y etiquetas. */
+function crmFields(settings: CrmSettings): LeadField[] {
+  const stageName = (id?: string) => settings.stages.find((s) => s.id === id)?.name ?? id ?? "";
+  const stageIndex = (id?: string) => settings.stages.findIndex((s) => s.id === id);
+  const tagNames = (l: Lead) =>
+    (saved(l).tags ?? []).map((id) => settings.tags.find((t) => t.id === id)?.name).filter(Boolean) as string[];
+  return [
+    {
+      key: "stage",
+      label: "Etapa",
+      kind: "text",
+      value: (l) => (stageIndex(saved(l).stage) >= 0 ? stageIndex(saved(l).stage) : undefined),
+      format: (l) => stageName(saved(l).stage),
+      defaultVisible: true,
+    },
+    {
+      key: "tags",
+      label: "Etiquetas",
+      kind: "tags",
+      value: (l) => tagNames(l).join(", ") || undefined,
+      format: (l) => tagNames(l).join(", "),
+      defaultVisible: true,
+    },
+    {
+      key: "color",
+      label: "Color",
+      kind: "text",
+      value: (l) => saved(l).color,
+      format: (l) => LABEL_COLORS.find((c) => c.id === saved(l).color)?.name ?? "",
+      defaultVisible: false,
+    },
+    {
+      key: "notes",
+      label: "Notas",
+      kind: "number",
+      value: (l) => saved(l).notes?.length || undefined,
+      format: (l) => (saved(l).notes ?? []).map((n) => `[${n.createdAt.slice(0, 10)}] ${n.text.replace(/\s+/g, " ")}`).join(" || "),
+      defaultVisible: false,
+    },
+    {
+      key: "doNotContact",
+      label: "No contactar",
+      kind: "text",
+      value: (l) => (saved(l).doNotContact ? "Sí" : undefined),
+      format: (l) => {
+        const d = saved(l).doNotContact;
+        return d ? `Sí (${d.at.slice(0, 10)}${d.reason ? `: ${d.reason}` : ""})` : "";
+      },
+      defaultVisible: false,
+    },
+    {
+      key: "savedAt",
+      label: "Guardado",
+      kind: "text",
+      value: (l) => saved(l).savedAt,
+      format: (l) => saved(l).savedAt ?? "",
+      defaultVisible: false,
+    },
+  ];
+}
+
+/**
+ * Campos disponibles para una tabla. En "saved" se añaden los del CRM tras el
+ * nombre. Si hay ajustes, "Etiquetas auto" usa su umbral de valoración baja.
+ */
+export function buildFields(table: TableId, settings?: CrmSettings): LeadField[] {
+  const base = LEAD_FIELDS.map((f) => (f.key === "autoTags" && settings ? autoTagsField(settings.lowRating) : f));
+  if (table !== "saved" || !settings) return base;
+  const crm = crmFields(settings);
+  const i = base.findIndex((f) => f.key === "category");
+  return [...base.slice(0, i), ...crm.slice(0, 2), ...base.slice(i), ...crm.slice(2)];
+}
+
+/** Columnas visibles por defecto, en orden. */
+export function defaultColumns(fields: LeadField[]): string[] {
+  return fields.filter((f) => f.defaultVisible).map((f) => f.key);
+}
+
+export function getField(key: string, fields: LeadField[] = LEAD_FIELDS): LeadField | undefined {
+  return fields.find((f) => f.key === key);
 }

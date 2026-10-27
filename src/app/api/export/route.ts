@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { LEAD_FIELDS } from "@/core/fields";
+import { buildFields } from "@/core/fields";
 import { resolveOptions } from "@/core/options";
 import { fromSearchParams, queryLeads } from "@/core/query";
 import { getExporter, getStore } from "@/server/registry";
@@ -19,11 +19,16 @@ export const GET = handle(async (request: NextRequest) => {
   const searchId = p.get("searchId") || undefined;
   const { filters, sort } = fromSearchParams(p);
   const scope = p.get("scope") === "saved" ? "saved" : "results";
+  const settings = await store.getSettings();
+  const allFields = buildFields(scope, settings);
   const source = scope === "saved" ? await store.listSavedLeads() : await store.listLeads(searchId);
-  const leads = queryLeads(source, filters, sort);
+  const leads = queryLeads(source, filters, sort, { lowRating: settings.lowRating, fields: allFields });
 
   const wanted = p.get("fields")?.split(",").filter(Boolean);
-  const fields = wanted?.length ? LEAD_FIELDS.filter((f) => wanted.includes(f.key)) : LEAD_FIELDS;
+  // Respeta el orden de columnas pedido (el de la tabla).
+  const fields = wanted?.length
+    ? (wanted.map((k) => allFields.find((f) => f.key === k)).filter(Boolean) as typeof allFields)
+    : allFields;
 
   const options = resolveOptions(exporter.options, Object.fromEntries(p.entries()));
   const body = exporter.export(leads, fields, options);

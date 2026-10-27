@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Search } from "@/core/search";
+import type { CrmSettings } from "@/core/crm";
 import type { ModulesInfo } from "../types";
 
 interface DataContextValue {
@@ -9,6 +10,14 @@ interface DataContextValue {
   searches: Search[];
   /** Claves de los leads guardados (para marcar resultados como "guardado"). */
   savedKeys: Set<string>;
+  /** Claves de los leads marcados "no contactar". */
+  dncKeys: Set<string>;
+  /** Etapas, etiquetas y preferencias del CRM. */
+  settings?: CrmSettings;
+  refreshSettings(): Promise<void>;
+  /** Guarda un cambio de ajustes (PATCH /api/settings) y actualiza el estado. */
+  patchSettings(body: unknown): Promise<CrmSettings>;
+  setSettings(s: CrmSettings): void;
   /** true hasta la primera respuesta de /api/searches. */
   loading: boolean;
   error?: string;
@@ -41,6 +50,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [modules, setModules] = useState<ModulesInfo>();
   const [searches, setSearches] = useState<Search[]>([]);
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+  const [dncKeys, setDncKeys] = useState<Set<string>>(new Set());
+  const [settings, setSettings] = useState<CrmSettings>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -66,15 +77,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSaved = useCallback(
     () =>
-      api<string[]>("/api/leads/keys")
-        .then((keys) => setSavedKeys(new Set(keys)))
+      api<{ saved: string[]; dnc: string[] }>("/api/leads/keys")
+        .then((k) => {
+          setSavedKeys(new Set(k.saved));
+          setDncKeys(new Set(k.dnc));
+        })
         .catch(() => undefined),
     [],
   );
 
+  const refreshSettings = useCallback(
+    () =>
+      api<CrmSettings>("/api/settings")
+        .then(setSettings)
+        .catch(() => undefined),
+    [],
+  );
+
+  const patchSettings = useCallback(async (body: unknown) => {
+    const next = await postJson<CrmSettings>("/api/settings", body, "PATCH");
+    setSettings(next);
+    return next;
+  }, []);
+
   useEffect(() => {
-    void Promise.resolve().then(() => Promise.all([refreshModules(), refreshSearches(), refreshSaved()]));
-  }, [refreshModules, refreshSearches, refreshSaved]);
+    void Promise.resolve().then(() => Promise.all([refreshModules(), refreshSearches(), refreshSaved(), refreshSettings()]));
+  }, [refreshModules, refreshSearches, refreshSaved, refreshSettings]);
 
   const anyActive = searches.some((s) => s.status === "running" || s.status === "queued");
   useEffect(() => {
@@ -86,8 +114,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const addSearch = useCallback((s: Search) => setSearches((list) => [s, ...list]), []);
 
   const value = useMemo(
-    () => ({ modules, searches, savedKeys, loading, error, refreshSearches, refreshModules, refreshSaved, addSearch }),
-    [modules, searches, savedKeys, loading, error, refreshSearches, refreshModules, refreshSaved, addSearch],
+    () => ({
+      modules,
+      searches,
+      savedKeys,
+      dncKeys,
+      settings,
+      loading,
+      error,
+      refreshSearches,
+      refreshModules,
+      refreshSaved,
+      refreshSettings,
+      patchSettings,
+      setSettings,
+      addSearch,
+    }),
+    [modules, searches, savedKeys, dncKeys, settings, loading, error, refreshSearches, refreshModules, refreshSaved, refreshSettings, patchSettings, addSearch],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

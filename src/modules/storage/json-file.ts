@@ -1,7 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineStorage, type LeadStore } from "@/core/storage";
-import { dedupeLeads, leadDedupeKey, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
+import { randomUUID } from "node:crypto";
+import { dedupeLeads, leadDedupeKey, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
+import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate } from "@/core/crm";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 
@@ -10,6 +12,7 @@ import type { Search } from "@/core/search";
  *   data/searches.json
  *   data/leads/<searchId>.json   (resultados de cada búsqueda)
  *   data/saved-leads.json        (leads guardados, incluida la papelera)
+ *   data/settings.json           (etapas, etiquetas y preferencias del CRM)
  * Sin dependencias ni servicios: ideal para uso local y pruebas.
  */
 
@@ -20,6 +23,10 @@ class JsonFileStore implements LeadStore {
 
   private get searchesFile() {
     return path.join(this.dir, "searches.json");
+  }
+
+  private get settingsFile() {
+    return path.join(this.dir, "settings.json");
   }
 
   private get savedFile() {
@@ -134,8 +141,8 @@ class JsonFileStore implements LeadStore {
 
   // ── Leads guardados ──
 
-  private readSaved() {
-    return this.read<SavedLead[]>(this.savedFile, []);
+  private async readSaved() {
+    return (await this.read<SavedLead[]>(this.savedFile, [])).map(normalizeSaved);
   }
 
   saveLeads(leads: SavedLead[]) {
@@ -225,6 +232,45 @@ class JsonFileStore implements LeadStore {
     return this.removeSaved((l) => Boolean(l.purgeAt) && (l.purgeAt as string) <= iso);
   }
 
+  async getSavedLead(id: string) {
+    return (await this.readSaved()).find((l) => l.id === id);
+  }
+
+  updateLeads(ids: string[], update: LeadUpdate) {
+    const now = new Date().toISOString();
+    return this.mutateSaved(ids, (l) => ({ ...applyLeadUpdate(l, update, now, randomUUID), updatedAt: now }));
+  }
+
+  reassignStage(from: string, to: string) {
+    return this.lock(async () => {
+      const all = await this.readSaved();
+      let n = 0;
+      const next = all.map((l) => (l.stage === from ? (n++, { ...l, stage: to }) : l));
+      if (n) await this.write(this.savedFile, next);
+      return n;
+    });
+  }
+
+  removeTag(tagId: string) {
+    return this.lock(async () => {
+      const all = await this.readSaved();
+      let n = 0;
+      const next = all.map((l) => (l.tags.includes(tagId) ? (n++, { ...l, tags: l.tags.filter((t) => t !== tagId) }) : l));
+      if (n) await this.write(this.savedFile, next);
+      return n;
+    });
+  }
+
+  // ── Ajustes del CRM ──
+
+  async getSettings() {
+    return withDefaults(await this.read<Partial<CrmSettings> | undefined>(this.settingsFile, undefined));
+  }
+
+  saveSettings(settings: CrmSettings) {
+    return this.lock(() => this.write(this.settingsFile, settings));
+  }
+
   // ── Copia de seguridad ──
 
   async exportAll(): Promise<Backup> {
@@ -237,6 +283,7 @@ class JsonFileStore implements LeadStore {
       searches,
       results,
       leads: await this.readSaved(),
+      settings: await this.getSettings(),
     };
   }
 
@@ -258,6 +305,7 @@ class JsonFileStore implements LeadStore {
       if (fresh.length) await this.write(this.savedFile, [...all, ...fresh]);
       return fresh.length;
     });
+    if (backup.settings) await this.saveSettings(mergeSettings(await this.getSettings(), backup.settings));
     return summary;
   }
 }

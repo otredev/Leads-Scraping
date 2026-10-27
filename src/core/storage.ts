@@ -1,6 +1,7 @@
 import type { HealthStatus } from "./provider";
 import type { Lead, SavedLead } from "./lead";
 import type { Search } from "./search";
+import type { CrmSettings, LeadUpdate } from "./crm";
 
 /** Copia de seguridad completa, independiente del almacenamiento. */
 export interface Backup {
@@ -12,6 +13,8 @@ export interface Backup {
   results: Lead[];
   /** Leads guardados (incluye los de la papelera). */
   leads: SavedLead[];
+  /** Etapas, etiquetas y preferencias (desde la fase 2). */
+  settings?: CrmSettings;
 }
 
 export interface ImportSummary {
@@ -58,6 +61,17 @@ export interface LeadStore {
   purgeLeads(ids?: string[]): Promise<number>;
   /** Borra los que ya pasaron su fecha de purga. */
   purgeExpired(now?: Date): Promise<number>;
+  getSavedLead(id: string): Promise<SavedLead | undefined>;
+  /** Aplica cambios del CRM (etapa, etiquetas, color, notas, no contactar) a uno o varios leads. */
+  updateLeads(ids: string[], update: LeadUpdate): Promise<number>;
+  /** Mueve todos los leads de una etapa a otra (al borrar una etapa). */
+  reassignStage(from: string, to: string): Promise<number>;
+  /** Quita una etiqueta de todos los leads (al borrarla). */
+  removeTag(tagId: string): Promise<number>;
+
+  // ── Ajustes del CRM ──
+  getSettings(): Promise<CrmSettings>;
+  saveSettings(settings: CrmSettings): Promise<void>;
 
   // ── Copia de seguridad ──
   exportAll(): Promise<Backup>;

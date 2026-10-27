@@ -39,7 +39,7 @@ npm run dev                     # abre http://localhost:3000
 2. En Atlas → **Network Access**, añade tu IP (o `0.0.0.0/0` para permitir cualquiera).
 3. Reinicia `npm run dev`. En **Ajustes** verás "MongoDB · Conectada". Si tenías datos locales en `data/`, pulsa **Importar datos locales**.
 
-Las colecciones (`searches`, `results`, `leads`) y sus índices se crean solos en la base `leads_scraping` (cámbiala con `MONGODB_DB`).
+Las colecciones (`searches`, `results`, `leads`, `settings`) y sus índices se crean solos en la base `leads_scraping` (cámbiala con `MONGODB_DB`).
 
 ### Variables de entorno
 
@@ -62,7 +62,13 @@ En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a go
 - **Panel:** negocios encontrados, leads guardados, % con email y teléfono, extraídos por día, cobertura de contacto, categorías, valoraciones, búsquedas recientes y mejor valorados.
 - **Búsquedas:** formulario de nueva búsqueda e historial guardado, con progreso en vivo y botón para **repetir** cualquier búsqueda.
 - **Resultados:** lo que devuelven las búsquedas. Filtra, ordena, exporta y **guarda** una fila (icono de marcador) o **todos los visibles** del filtro actual.
-- **Leads:** tus leads guardados (el CRM). Separados de los resultados: borrar una búsqueda no borra tus leads. Guardar otra vez el mismo negocio actualiza sus datos.
+- **Leads:** tus leads guardados (el CRM), en tres vistas: **Tabla**, **Lista** agrupada por etapa y **Tablero** tipo Trello (arrastra tarjetas entre etapas, o usa su menú ⋯). Al pulsar un lead se abre su **ficha**: etapa, color, etiquetas, notas y "no contactar". Separados de los resultados: borrar una búsqueda no borra tus leads, y guardar otra vez el mismo negocio actualiza sus datos sin tocar tu trabajo.
+- **Etapas, etiquetas y colores:** etapas configurables (por defecto Desinteresados, Leads, Interesados, Clientes), etiquetas propias con color, y un color por lead. Se gestionan en Ajustes o al vuelo.
+- **Etiquetas automáticas:** "Sin web", "Sin contacto" y "Valoración baja" se calculan solas y sirven para filtrar (también en Resultados).
+- **Puntuación (0–100):** según datos de contacto, valoración y nº de reseñas. Columna ordenable y filtro "Puntuación 40+/60+/80+". La fórmula está en `src/core/score.ts`.
+- **Acciones masivas:** selecciona filas (o "todos los filtrados") y cambia etapa, añade/quita etiquetas, color, "no contactar" o envía a la papelera. En Resultados, guarda la selección.
+- **No contactar (RGPD):** marca con motivo a quien pide no ser contactado. Se ocultan por defecto (y por tanto no se exportan) y se avisa en Resultados si vuelve a aparecer.
+- **Filtros predeterminados y columnas:** "Fijar como predeterminados" guarda los filtros y el orden actuales; "Restablecer" vuelve a ellos. El orden y la visibilidad de columnas se guardan solos (menú Columnas).
 - **Papelera:** los leads borrados se pueden restaurar; se eliminan solos a los 30 días (`TRASH_DAYS`).
 - **Ajustes:** estado de la base de datos, **copia de seguridad** (descargar / restaurar JSON), importación de datos locales y módulos conectados.
 - **Teléfonos normalizados:** se guardan en formato internacional (`+34 963 00 00 00`) y E.164 (`+34963000000`) para WhatsApp. El país se elige en cada búsqueda.
@@ -100,6 +106,8 @@ src/
 │   ├── storage.ts           Interfaz LeadStore
 │   ├── options.ts           Esquema declarativo de opciones → formularios automáticos
 │   ├── stats.ts             Métricas del panel
+│   ├── crm.ts               Etapas, etiquetas, colores, notas, no contactar, preferencias
+│   ├── score.ts             Puntuación y etiquetas automáticas
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -112,10 +120,12 @@ src/
 │   ├── registry.ts          Búsqueda de módulos e instancia del almacenamiento
 │   ├── crm.ts               Guardar resultados como leads, papelera
 │   └── runner.ts            Ejecuta búsquedas en segundo plano, guarda, cancela y reanuda
-├── app/api/                 REST: modules, searches, results, leads, export, stats, backup
+├── app/api/                 REST: modules, searches, results, leads, export, stats, backup, settings
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
 │   ├── pages/               Panel, Búsquedas, Resultados, Leads, Papelera, Ajustes
+│   ├── leads/               Tabla, lista, tablero, ficha, barra de acciones y filtros
+│   ├── settings/            Gestión de etapas y etiquetas
 │   ├── charts/              Gráficos ligeros en HTML/CSS (sin librerías)
 │   ├── ui/                  Tarjetas, métricas, insignias de estado…
 │   └── data/                Estado compartido (módulos y búsquedas)
@@ -211,39 +221,39 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 # Pendientes: 
 
 ## Fase 1 · Base de datos
-- Conectarlo a una base de datos de mongo db y poder guardar un fila o todos los datos visibles de un filtro. 
-- Historial de busquedas guardadas
-- Normalizar teléfonos: pasarlos a formato internacional (con libphonenumber) para que WhatsApp funcione siempre.
-- Papelera para recuperar leads borrados. Que se eliminen por tiempo
-- Copia de seguridad / exportar el CRM completo.
+- [x] Conectarlo a una base de datos de mongo db y poder guardar un fila o todos los datos visibles de un filtro. 
+- [x] Historial de busquedas guardadas
+- [x] Normalizar teléfonos: pasarlos a formato internacional (con libphonenumber) para que WhatsApp funcione siempre.
+- [x] Papelera para recuperar leads borrados. Que se eliminen por tiempo
+- [x] Copia de seguridad / exportar el CRM completo.
 
 ## Fase 2 · CRM: organizar leads
-- Opcion de recategorizar ejemplo (Desinteresados, Leads, Interesados, Clientes) En una pagina donde pueda cambiar de vistas, a listas, columnas como tablero como trello.
-- Poder agregar notas, a cada lead.
-- Opcion de crear y agregar tags a leads.
-- Opcion de cambiar colores a leads. 
-- Tags automaticos: marcar automáticamente “sin web”, “sin contacto” o “valoración baja”.
-- Opcion de establecer filtros predeterminados, que al restablecer queden fijos.
-- Acciones masivas: seleccionar varios leads y cambiar etapa, tag o borrar a la vez.
-- Puntuación de leads según datos de contacto, valoración y reseñas.
-- Poder personalizar el orden de las columnas de las tablas de lead.
-- Lista de "no contactar" para cumplir RGPD. De personas que piden no volver a contactar
+- [x] Opcion de recategorizar ejemplo (Desinteresados, Leads, Interesados, Clientes) En una pagina donde pueda cambiar de vistas, a listas, columnas como tablero como trello.
+- [x] Poder agregar notas, a cada lead.
+- [x] Opcion de crear y agregar tags a leads.
+- [x] Opcion de cambiar colores a leads. 
+- [x] Tags automaticos: marcar automáticamente “sin web”, “sin contacto” o “valoración baja”.
+- [x] Opcion de establecer filtros predeterminados, que al restablecer queden fijos.
+- [x] Acciones masivas: seleccionar varios leads y cambiar etapa, tag o borrar a la vez.
+- [x] Puntuación de leads según datos de contacto, valoración y reseñas.
+- [x] Poder personalizar el orden de las columnas de las tablas de lead.
+- [x] Lista de "no contactar" para cumplir RGPD. De personas que piden no volver a contactar
 
 ## Fase 3 · Captura de datos
-- En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
-- Importar CSV
-- Volver a extraer los datos de un lead guardado para refrescarlo.
+- [ ] En el input de que y donde buscar. poder pegar el url de google maps con el filtro ya hecho y que de ahi me saque los datos
+- [ ] Importar CSV
+- [ ] Volver a extraer los datos de un lead guardado para refrescarlo.
 
 ## Fase 4 · Seguimiento y contacto
-- Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
-- Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
-- Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
-- Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
-- Embudo de conversión por etapa en el panel.
+- [ ] Opcion de crear tareas por lead, con opcion de notificaciones y agendamiento
+- [ ] Plantillas de mensaje: para WhatsApp o email, con variables como {nombre} o {categoria}.
+- [ ] Botones de contacto rápido (WhatsApp, llamar, copiar email) que registren el contacto.
+- [ ] Vista de mapa: con Leaflet y OpenStreetMap, gratis. Útil para planificar visitas por zona.
+- [ ] Embudo de conversión por etapa en el panel.
 
 ## Fase 5 · Integración con Claude
-- Crear MCP para manejarlo desde claude
-- Copiar datos de lead para crear con MCP de claude la pag en otrelink
+- [ ] Crear MCP para manejarlo desde claude
+- [ ] Copiar datos de lead para crear con MCP de claude la pag en otrelink
 
 ### Futuro:
 Login y multiusuario
