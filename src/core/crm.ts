@@ -75,6 +75,8 @@ export interface CrmFields {
   /** Historial de contactos (más reciente primero). */
   contacts?: ContactLog[];
   lastContactAt?: string;
+  /** Página web creada para el negocio (p. ej. en Otrelink). */
+  pageUrl?: string;
 }
 
 // ── Tareas ──
@@ -219,6 +221,8 @@ export interface LeadUpdate {
   deleteNote?: string;
   /** Registra un contacto (WhatsApp, llamada, email…). */
   logContact?: { channel: ContactChannel; template?: string };
+  /** Enlace a la página creada para el negocio; null lo quita. */
+  pageUrl?: string | null;
 }
 
 /** Aplica una actualización en memoria (usado por json-file y por la UI optimista). */
@@ -245,6 +249,8 @@ export function applyLeadUpdate<T extends CrmFields>(lead: T, u: LeadUpdate, now
     next.contacts = [entry, ...(lead.contacts ?? [])].slice(0, 200);
     next.lastContactAt = now;
   }
+  if (u.pageUrl === null) delete next.pageUrl;
+  else if (u.pageUrl) next.pageUrl = u.pageUrl;
   return next;
 }
 
@@ -282,6 +288,17 @@ export function sanitizeUpdate(raw: unknown, settings: CrmSettings): LeadUpdate 
       channel: lc.channel as ContactChannel,
       ...(typeof lc.template === "string" && lc.template ? { template: lc.template.slice(0, 80) } : {}),
     };
+  }
+  if (r.pageUrl === null || r.pageUrl === "") out.pageUrl = null;
+  else if (typeof r.pageUrl === "string") {
+    let url: URL;
+    try {
+      url = new URL(r.pageUrl.trim());
+    } catch {
+      throw invalid("Enlace de página no válido");
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") throw invalid("Enlace de página no válido");
+    out.pageUrl = url.toString();
   }
   return out;
 }

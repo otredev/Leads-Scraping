@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BellRing, X } from "lucide-react";
 import { useData, type TaskView } from "../data/DataProvider";
 import { formatDue } from "./TaskParts";
+import { showNotification } from "@/lib/pwa";
 
 const KEY = "notified-tasks";
 const WINDOW_MS = 60 * 60_000; // solo avisa de tareas vencidas en la última hora
@@ -45,13 +46,11 @@ export function TaskNotifier() {
       if (!due.length) return;
       for (const t of due) {
         notified.add(t.id);
-        try {
-          if ("Notification" in window && Notification.permission === "granted") {
-            new Notification(t.title, { body: `${t.leadName} · ${formatDue(t.dueAt)}`, tag: t.id });
-          }
-        } catch {
-          /* algunos navegadores no permiten notificaciones aquí */
-        }
+        void showNotification(t.title, {
+          body: `${t.leadName} · ${formatDue(t.dueAt)}`,
+          tag: t.id,
+          url: t.leadExists ? `/leads?lead=${t.leadId}` : "/tareas",
+        });
       }
       saveNotified(notified);
       setToasts((list) => [...due, ...list].slice(0, 4));
@@ -60,6 +59,13 @@ export function TaskNotifier() {
     const timer = setInterval(check, 15_000);
     return () => clearInterval(timer);
   }, [tasks]);
+
+  // Los avisos se cierran solos a los 20 s (la tarea sigue en Tareas).
+  useEffect(() => {
+    if (!toasts.length) return;
+    const timer = setTimeout(() => setToasts((list) => list.slice(0, -1)), 20_000);
+    return () => clearTimeout(timer);
+  }, [toasts]);
 
   if (!toasts.length) return null;
   return (

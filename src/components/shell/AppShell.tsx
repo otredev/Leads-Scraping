@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarCheck, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
 import { ThemeButton, ThemeSwitch } from "./ThemeToggle";
 import { Skeleton } from "../ui";
+import { registerServiceWorker } from "@/lib/pwa";
 
 const NAV = [
   { href: "/", label: "Panel", Icon: LayoutDashboard },
@@ -122,6 +123,7 @@ function ErrorBanner() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => registerServiceWorker(), []);
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">

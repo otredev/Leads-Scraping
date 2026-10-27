@@ -33,5 +33,6 @@ export async function GET() {
         existsSync(path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "searches.json")),
     },
     defaults: { country: defaultCountry(), lang: "es", trashDays: trashDays() },
+    mcp: { path: "/api/mcp", token: Boolean(process.env.MCP_TOKEN?.trim()) },
   });
 }

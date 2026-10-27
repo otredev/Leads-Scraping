@@ -52,6 +52,7 @@ Las colecciones (`searches`, `results`, `leads`, `settings`) y sus índices se c
 | `DATA_DIR` | Carpeta del almacenamiento `json-file` | `./data` |
 | `DEFAULT_COUNTRY` | País para teléfonos sin prefijo (ISO, 2 letras) | `ES` |
 | `TRASH_DAYS` | Días que un lead pasa en la papelera | `30` |
+| `MCP_TOKEN` | Token para el servidor MCP. Sin él, el MCP solo acepta conexiones desde este equipo | — |
 
 En el formulario, el punto verde junto a "Proveedor" confirma que la app ve a gosom. Si está en rojo, gosom no está levantado.
 
@@ -101,6 +102,45 @@ Todos los colores están en variables al principio de `src/app/globals.css` (un 
 
 > **Email:** Google Maps no publica emails. Solo aparecen si gosom los encuentra en la web del negocio.
 
+## Claude (MCP)
+
+La app incluye un servidor [MCP](https://modelcontextprotocol.io) en `http://localhost:3000/api/mcp`. Con él, Claude maneja el CRM hablando: "busca fisioterapeutas en Sevilla y guarda los que no tienen web", "¿qué tareas tengo hoy?", "pasa a Interesados los abogados con más de 4,5 estrellas", "prepárame un WhatsApp de presentación para Óptica Norte".
+
+En **Ajustes → Claude (MCP)** tienes la dirección y los comandos listos para copiar. La app tiene que estar abierta (`npm run dev`).
+
+- **Claude Code:** el proyecto trae `.mcp.json`, así que al abrir Claude Code en esta carpeta te ofrece conectarlo. Desde otra carpeta:
+  ```bash
+  claude mcp add --transport http leads-scraping http://localhost:3000/api/mcp
+  ```
+- **Claude Desktop:** en Ajustes → Desarrollador → Editar configuración, añade (necesita Node.js):
+  ```json
+  { "mcpServers": { "leads-scraping": { "command": "npx", "args": ["-y", "mcp-remote", "http://localhost:3000/api/mcp"] } } }
+  ```
+- **claude.ai (web y móvil):** solo conecta con servidores públicos por HTTPS. Cuando despliegues la app, define `MCP_TOKEN` y añade un conector personalizado con `https://tu-dominio/api/mcp?token=TU_TOKEN`.
+
+| Herramienta | Qué hace |
+|---|---|
+| `get_overview` | Métricas, embudo, etapas, etiquetas, plantillas y tareas pendientes |
+| `list_leads` / `get_lead` | Buscar leads guardados (mismos filtros que la app) y ver su ficha completa |
+| `update_lead` / `trash_leads` | Etapa, color, etiquetas, notas, "no contactar"; mover a la papelera |
+| `start_search` / `get_search` / `list_searches` | Lanzar búsquedas en Google Maps y seguir su progreso |
+| `list_results` / `save_results` | Ver lo encontrado y guardarlo en el CRM |
+| `list_tasks` / `create_task` / `complete_task` | Tareas de seguimiento |
+| `draft_message` / `log_contact` | Rellenar una plantilla de WhatsApp o email y registrar el contacto |
+| `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink y guardar su enlace |
+
+Etapas, etiquetas y plantillas se pueden nombrar por su nombre. Claude no envía mensajes: `draft_message` devuelve el texto y el enlace para abrirlo, y respeta la lista "no contactar".
+
+**Seguridad:** sin `MCP_TOKEN`, el servidor solo responde a peticiones de `localhost` (también comprueba `Host` y `Origin`, para que una web no pueda usarlo desde tu navegador). Con `MCP_TOKEN`, exige `Authorization: Bearer <token>` (o `?token=` para clientes que no envían cabeceras).
+
+### Página del negocio en Otrelink
+
+En la ficha de cada lead, **Página web → Copiar para Claude** copia un encargo con los datos del negocio (teléfono, WhatsApp, email, web, horario convertido al formato de Otrelink, mapa, valoración y mejores reseñas) y una plantilla sugerida según la categoría (clínica, restaurante, salón, gimnasio…). Pégalo en un chat de Claude con el conector de Otrelink y creará la página en borrador. Si Claude también tiene el MCP de esta app, usa `otrelink_brief` directamente y guarda el enlace en el lead con `set_lead_page`; si no, pega el enlace en la ficha. La columna **Página** de la tabla muestra qué negocios ya tienen la suya.
+
+### Instalar como app (PWA)
+
+Leads Scraping se puede instalar con su propio icono y ventana: en Chrome o Edge, con el icono de instalar de la barra de direcciones (o en Ajustes → Instalar la app). Instalada, los avisos de tareas salen como notificaciones del sistema y, si el servidor no está encendido, muestra una pantalla de "sin conexión" en lugar de un error. En el móvil solo se puede instalar cuando la app esté desplegada con HTTPS.
+
 ---
 
 ## Arquitectura
@@ -118,6 +158,9 @@ src/
 │   ├── stats.ts             Métricas del panel
 │   ├── crm.ts               Etapas, etiquetas, colores, notas, no contactar, preferencias
 │   ├── score.ts             Puntuación y etiquetas automáticas
+│   ├── templates.ts         Plantillas de mensaje, enlaces de WhatsApp y email
+│   ├── calendar.ts          Tareas: agrupación, Google Calendar e .ics
+│   ├── otrelink.ts          Brief para crear la página del negocio en Otrelink
 │   ├── phone.ts             Normalización de teléfonos (libphonenumber)
 │   └── search.ts            Búsqueda (trabajo) y sus estados
 ├── modules/                 Implementaciones intercambiables
@@ -129,8 +172,10 @@ src/
 ├── server/
 │   ├── registry.ts          Búsqueda de módulos e instancia del almacenamiento
 │   ├── crm.ts               Guardar resultados como leads, papelera
-│   └── runner.ts            Ejecuta búsquedas en segundo plano, guarda, cancela y reanuda
-├── app/api/                 REST: modules, searches, results, leads, export, stats, backup, settings
+│   ├── runner.ts            Ejecuta búsquedas en segundo plano, guarda, cancela y reanuda
+│   ├── tasks.ts             Tareas por lead
+│   └── mcp/                 Servidor MCP para Claude (herramientas y acceso)
+├── app/api/                 REST: modules, searches, results, leads, tasks, export, stats, backup, settings, mcp
 ├── components/
 │   ├── shell/               Barra lateral, cabecera móvil y selector de tema
 │   ├── pages/               Panel, Búsquedas, Resultados, Leads, Papelera, Ajustes
@@ -139,7 +184,9 @@ src/
 │   ├── charts/              Gráficos ligeros en HTML/CSS (sin librerías)
 │   ├── ui/                  Tarjetas, métricas, insignias de estado…
 │   └── data/                Estado compartido (módulos y búsquedas)
-└── lib/theme.ts             Lógica del tema claro/oscuro
+├── lib/theme.ts             Lógica del tema claro/oscuro
+└── lib/pwa.ts               Service worker, instalación y notificaciones
+public/sw.js                 Service worker (pantalla sin conexión, avisos)
 ```
 
 **Fuente y proveedor no son lo mismo.** Una *fuente* es de dónde salen los datos (Google Maps, Yelp, Páginas Amarillas…). Un *proveedor* es la herramienta que los extrae (gosom, Apify, la API oficial de Google…). Una fuente puede tener varios proveedores, y todos devuelven el mismo `Lead`.
@@ -262,14 +309,17 @@ Hacer scraping de Google Maps va en contra de sus Términos de Servicio. Úsalo 
 - [x] Embudo de conversión por etapa en el panel.
 
 ## Fase 5 · Integración con Claude
-- [ ] Crear MCP para manejarlo desde claude
-- [ ] Copiar datos de lead para crear con MCP de claude la pag en otrelink
-- [ ] Convertir la app en pwa
+- [x] Crear MCP para manejarlo desde claude
+- [x] Copiar datos de lead para crear con MCP de claude la pag en otrelink
+- [x] Convertir la app en pwa
 
 
 # Otros:
-- Pagina de solo clientes para administrar las tareas y proyectos.
+- Pagina de solo clientes para administrar las tareas y proyectos desde ahi. (analizar, preguntar a claudio)
 - Buscar mas proveedores para cuando le de actualizar pueda usar otro proveedor que me pueda complementar datos como por ej los socials
+- Crear calendario interno
+- Notificaciones push
+- Crear pagina de documentacion
 
 ### Futuro:
 Login y multiusuario

@@ -198,6 +198,14 @@ function crmFields(settings: CrmSettings): LeadField[] {
       defaultVisible: false,
     },
     {
+      key: "pageUrl",
+      label: "Página",
+      kind: "text",
+      value: (l) => saved(l).pageUrl,
+      format: (l) => saved(l).pageUrl ?? "",
+      defaultVisible: false,
+    },
+    {
       key: "savedAt",
       label: "Guardado",
       kind: "text",

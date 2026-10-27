@@ -127,6 +127,7 @@ export function Cell({ field, lead, settings }: { field: LeadField; lead: Lead; 
       );
     case "website":
     case "url":
+    case "pageUrl":
       return field.value(lead) ? (
         <a
           href={String(field.value(lead))}

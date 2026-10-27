@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sin conexión · Leads Scraping</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f5f5f5; --fg:#111; --muted:#6b6b6b; --surface:#fff; --line:#e5e5e5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0a0a0a; --fg:#f2f2f2; --muted:#9a9a9a; --surface:#141414; --line:#262626; } }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+         font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding:16px; box-sizing:border-box; }
+  .card { max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:28px; text-align:center; }
+  img { width:48px; height:48px; border-radius:12px; }
+  h1 { font-size:18px; margin:16px 0 6px; }
+  p { color:var(--muted); margin:0 0 20px; }
+  button { font:inherit; font-weight:500; background:var(--fg); color:var(--bg); border:0; border-radius:10px; padding:10px 18px; cursor:pointer; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <img src="/icons/icon-192.png" alt="">
+    <h1>No se puede conectar con la app</h1>
+    <p>Comprueba que el servidor de Leads Scraping esté encendido (<code>npm run dev</code> o <code>npm start</code>) y que tengas conexión.</p>
+    <button onclick="location.reload()">Reintentar</button>
+  </main>
+</body>
+</html>

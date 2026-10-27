@@ -300,7 +300,7 @@ class MongoStore implements LeadStore {
         );
         n++;
       }
-      if (!u.stage && u.color === undefined && !u.addTags && !u.removeTags && u.doNotContact === undefined) return n;
+      if (!u.stage && u.color === undefined && !u.addTags && !u.removeTags && u.doNotContact === undefined && u.pageUrl === undefined) return n;
     }
 
     // Resto: una sola operación masiva.
@@ -309,6 +309,8 @@ class MongoStore implements LeadStore {
     if (u.stage) set.stage = u.stage;
     if (u.color === null) unset.color = "";
     else if (u.color) set.color = u.color;
+    if (u.pageUrl === null) unset.pageUrl = "";
+    else if (u.pageUrl) set.pageUrl = u.pageUrl;
     if (u.doNotContact === false) unset.doNotContact = "";
     else if (u.doNotContact) {
       set.doNotContact = {

@@ -8,6 +8,7 @@ import { AUTO_TAGS, autoTags, leadScore } from "@/core/score";
 import { api, postJson, useData } from "../data/DataProvider";
 import { TaskForm, TaskRow } from "../tasks/TaskParts";
 import { ContactPanel } from "./ContactPanel";
+import { PagePanel } from "./PagePanel";
 import { Skeleton } from "../ui";
 import { NewTagInput } from "./BulkBar";
 import { ColorDot, ColorPicker, DncBadge, HoursAndReviews, TagChip, hostname } from "./parts";
@@ -156,6 +157,10 @@ export function LeadDrawer({
               ))}
             </ul>
           )}
+        </Section>
+
+        <Section title="Página web">
+          <PagePanel key={lead.pageUrl ?? "none"} lead={lead} onPatch={patch} busy={busy} />
         </Section>
 
         <Section title="Datos de contacto">
