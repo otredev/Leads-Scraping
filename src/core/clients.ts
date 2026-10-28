@@ -39,6 +39,10 @@ export interface Client {
   notes?: string;
   /** Lead del que viene (si se convirtió desde Leads). */
   leadId?: string;
+  /** Canal por el que llegó (Google Maps, Referido…). Sin valor: "Google Maps" si viene de un lead. */
+  channel?: string;
+  /** Sector o tipo de negocio (para Finanzas → segmentos). Sin valor: la categoría del lead. */
+  category?: string;
   archived?: boolean;
   /** Portal del cliente (enlace privado). El token solo se guarda aquí; el portal guarda su hash. */
   portal?: ClientPortal;
@@ -97,6 +101,8 @@ export interface Project {
   showPaymentsToClient?: boolean;
   payments: Payment[];
   time: TimeEntry[];
+  /** Contar las horas como coste en Finanzas (por defecto sí; no en proyectos a precio cerrado si así lo prefieres). */
+  countHours?: boolean;
   createdAt: string;
   updatedAt: string;
 }

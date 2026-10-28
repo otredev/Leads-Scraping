@@ -28,6 +28,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
    - [Tareas y calendario](#tareas-y-calendario)
    - [Completar redes y emails](#completar-redes-y-emails)
    - [Clientes y proyectos](#clientes-y-proyectos)
+   - [Finanzas](#finanzas)
    - [Portal del cliente](#portal-del-cliente)
    - [Notificaciones push](#notificaciones-push)
    - [Ajustes, copias e instalación](#ajustes-copias-e-instalación)
@@ -53,6 +54,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
 | **Tareas** | Seguimientos con fecha opcional, calendario mensual/semanal y avisos push |
 | **Enriquecer** | Completar redes sociales, emails y teléfono desde la web de cada negocio |
 | **Clientes** | Proyectos con cronograma, tareas, presupuesto, pagos y horas |
+| **Finanzas** | Gastos, beneficio neto por cliente, retorno por canal de captación y rentabilidad por sector o ciudad |
 | **Portal** | Enlace privado donde el cliente ve el avance, con páginas legales generadas |
 | **Claude** | Manejar el CRM hablando, vía MCP, y crear la página del negocio en Otrelink |
 | **Ayuda** | Documentación integrada con buscador, sin conexión |
@@ -191,6 +193,19 @@ Ninguna red social ofrece una API gratuita para buscar un negocio por nombre: lo
 - **Horas** (`1:30`, `1,5` o `90m`), con total y coste si indicas precio por hora.
 - Cada hito y tarea tiene la marca **visible para el cliente** (el ojo): es lo único que llega a su portal.
 
+### Finanzas
+
+Cuánto ganas de verdad, qué clientes te compensan y dónde invertir para conseguir más.
+
+- **Ingresos:** los pagos registrados en los proyectos (en la fecha de cobro).
+- **Gastos** de tres tipos: **de un cliente** (colaboradores, licencias), **generales** (software, gestoría; se reparten entre clientes según lo que paga cada uno) y **de captación** (proxies, anuncios; se reparten entre los clientes de ese canal). Pueden repetirse cada mes o cada año.
+- **Tus horas** cuentan como coste al precio que indiques en Finanzas → Ajustes. En proyectos a precio cerrado puedes desactivarlo.
+- **Pestañas:** Resumen (ingresos y gastos por mes, cuenta de resultados, recomendaciones), Clientes (beneficio neto, margen y € por hora), Gastos e Inversión (retorno y coste por cliente o lead de cada canal, rentabilidad por sector, ciudad o canal, y peso de los gastos recurrentes).
+- Cada cliente tiene **canal de captación** y **sector**; los que vienen de un lead toman "Google Maps" y su categoría.
+- La ficha del cliente muestra su **rentabilidad** y sus gastos.
+
+Importes sin IVA, en una sola moneda (la de Finanzas).
+
 ### Portal del cliente
 
 Una web aparte en Cloudflare (gratis) donde cada cliente, con su **enlace privado**, ve el avance de sus proyectos: porcentaje, próxima entrega, cronograma, tareas y, si lo activas, presupuesto y pagos.
@@ -254,6 +269,7 @@ En **Ajustes → Claude (MCP)** tienes los comandos listos para copiar.
 | `list_tasks` / `create_task` / `update_task` / `complete_task` | Tareas de leads, clientes o proyectos |
 | `list_clients` / `get_client` / `create_client` | Clientes y resumen de sus proyectos |
 | `create_project` / `update_project` | Estado, hitos, pagos y horas |
+| `get_finances` / `list_expenses` / `add_expense` | Rentabilidad por cliente, canal y segmento; registrar gastos |
 | `draft_message` / `log_contact` | Rellenar una plantilla y registrar el contacto |
 | `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink |
 
@@ -281,6 +297,7 @@ src/
 │   ├── crm.ts          Etapas, etiquetas, ajustes
 │   ├── clients.ts      Clientes, proyectos, hitos, pagos y horas
 │   ├── portal.ts       Lo que se publica en el portal
+│   ├── finance.ts      Gastos y cálculo de rentabilidad
 │   └── …               score, templates, calendar, socials, phone, otrelink, stats
 ├── modules/            Implementaciones intercambiables
 │   ├── index.ts        ⭐ Registro: el único sitio donde se conectan
@@ -290,12 +307,12 @@ src/
 │   ├── storage/        mongodb, json-file
 │   ├── enrichers/      website-contacts
 │   └── notifiers/      web-push
-├── server/             Lógica de servidor: runner, crm, tasks, clients, portal,
-│   │                   enrich, reminders, notifications, docs
+├── server/             Lógica de servidor: runner, crm, tasks, clients, finance,
+│   │                   portal, enrich, reminders, notifications, docs
 │   └── mcp/            Servidor MCP para Claude
 ├── app/                Páginas y API REST (app/api/*)
 ├── components/         UI por sección: shell, pages, leads, clients, tasks,
-│                       calendar, settings, help, notifications, charts, ui
+│                       finance, calendar, settings, help, notifications, charts, ui
 ├── content/docs/       Guías de la página Ayuda (Markdown)
 ├── lib/                Tema y PWA
 └── instrumentation.ts  Arranca los recordatorios

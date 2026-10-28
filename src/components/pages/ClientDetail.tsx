@@ -11,6 +11,7 @@ import { ClientForm } from "../clients/ClientForm";
 import { ProjectForm } from "../clients/ProjectForm";
 import { ProjectPanel } from "../clients/ProjectPanel";
 import { PortalCard } from "../clients/PortalCard";
+import { ClientProfitCard } from "../finance/ClientProfitCard";
 import { MenuItem, Popover } from "../leads/Popover";
 import { hostname } from "../leads/parts";
 import { TaskForm, TaskRow } from "../tasks/TaskParts";
@@ -302,6 +303,7 @@ export function ClientDetail() {
           )}
         </div>
         <div className="flex flex-col gap-5 xl:col-start-1 xl:row-start-2">
+          {client && <ClientProfitCard clientId={client.id} projectId={selected?.id} version={projects} />}
           {client && <PortalCard client={client} />}
           {client && (
             <Card title="Tareas generales" description="Del cliente, sin proyecto concreto">

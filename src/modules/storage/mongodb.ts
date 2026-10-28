@@ -6,6 +6,7 @@ import { normalizeProject, type Client, type Project } from "@/core/clients";
 import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "@/core/storage";
 import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
+import type { Expense } from "@/core/finance";
 
 /**
  * Almacenamiento en MongoDB (Atlas o local).
@@ -104,6 +105,7 @@ const leads = async () => (await db()).collection<SavedDoc>("leads");
 const tasks = async () => (await db()).collection<Doc<Task>>("tasks");
 const clientsCol = async () => (await db()).collection<Doc<Client>>("clients");
 const projectsCol = async () => (await db()).collection<Doc<Project>>("projects");
+const expensesCol = async () => (await db()).collection<Doc<Expense>>("expenses");
 let metaQueue: Promise<unknown> = Promise.resolve();
 const metaCol = async () => (await db()).collection<{ _id: string; value: unknown }>("meta");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
@@ -434,6 +436,26 @@ class MongoStore implements LeadStore {
     await (await projectsCol()).deleteOne({ _id: id });
   }
 
+  // ── Gastos ──
+
+  async listExpenses() {
+    const docs = await (await expensesCol()).find().sort({ date: -1 }).toArray();
+    return docs.map((d) => fromDoc<Expense>(d)!);
+  }
+
+  async getExpense(id: string) {
+    return fromDoc<Expense>(await (await expensesCol()).findOne({ _id: id }));
+  }
+
+  async putExpense(expense: Expense) {
+    const { id, ...rest } = expense;
+    await (await expensesCol()).replaceOne({ _id: id }, clean(rest) as Doc<Expense>, { upsert: true });
+  }
+
+  async deleteExpense(id: string) {
+    await (await expensesCol()).deleteOne({ _id: id });
+  }
+
   // ── Datos internos de los módulos ──
 
   async getMeta<T>(key: string) {
@@ -476,6 +498,7 @@ class MongoStore implements LeadStore {
       tasks: await this.listTasks(),
       clients: await this.listClients(),
       projects: await this.listProjects(),
+      expenses: await this.listExpenses(),
     };
   }
 
@@ -524,6 +547,7 @@ class MongoStore implements LeadStore {
     for (const [col, list] of [
       [await clientsCol(), backup.clients ?? []],
       [await projectsCol(), backup.projects ?? []],
+      [await expensesCol(), backup.expenses ?? []],
     ] as const) {
       if (!list.length) continue;
       await (col as Awaited<ReturnType<typeof clientsCol>>).bulkWrite(

@@ -10,7 +10,7 @@ order: 7
 
 En [Clientes](/clientes) → **Nuevo cliente**:
 
-- **A mano**: nombre, contacto, email, teléfono, web, dirección y notas.
+- **A mano**: nombre, contacto, email, teléfono, web, dirección, notas y, para [Finanzas](/ayuda/finanzas), su **canal de captación** y **sector**.
 - **Desde un lead**: también con **Convertir en cliente** en la ficha del lead. Se copian sus datos, queda enlazado al lead y el lead pasa a tu última etapa (normalmente "Clientes"). Si ya era cliente, te lleva al existente.
 
 La lista muestra las **métricas** (clientes activos, entregas de esta semana, retrasos y pendiente de cobro) y, por cliente, sus proyectos en marcha, avance, próxima entrega y lo que te debe.

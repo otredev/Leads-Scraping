@@ -28,6 +28,7 @@ export function ProjectForm({
     currency: project?.currency ?? defaultCurrency,
     budget: project?.budget?.toString() ?? "",
     hourlyRate: project?.hourlyRate?.toString() ?? "",
+    countHours: project?.countHours !== false,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -105,6 +106,18 @@ export function ProjectForm({
         <Field label="Precio por hora" hint="Opcional: calcula el coste de las horas">
           <input className="input" inputMode="decimal" value={d.hourlyRate} onChange={set("hourlyRate")} placeholder="0" />
         </Field>
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-primary"
+            checked={d.countHours}
+            onChange={(e) => setD((x) => ({ ...x, countHours: e.target.checked }))}
+          />
+          <span>
+            Contar mis horas como coste en Finanzas
+            <span className="hint block">Desmárcalo en proyectos a precio cerrado si no quieres que tus horas resten beneficio.</span>
+          </span>
+        </label>
         <Field label="Descripción" className="sm:col-span-2">
           <textarea className="input min-h-24 resize-y" value={d.description} onChange={set("description")} placeholder="Alcance, entregables, notas…" />
         </Field>

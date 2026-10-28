@@ -16,6 +16,7 @@ import { normalizePhone } from "@/core/phone";
 import { defaultCountry } from "./config";
 import { getStore } from "./registry";
 import { disablePortal, schedulePublish } from "./portal";
+import { detachExpenses } from "./finance";
 
 const bad = (m: string) => Object.assign(new Error(m), { status: 400 });
 const notFound = (m: string) => Object.assign(new Error(m), { status: 404 });
@@ -111,6 +112,7 @@ export async function createClient(raw: unknown): Promise<{ client: Client; exis
       phoneE164: lead.phoneE164,
       website: lead.website,
       address: lead.address,
+      ...(lead.category ? { category: lead.category } : {}),
       leadId: lead.id,
       createdAt: t,
       updatedAt: t,
@@ -134,6 +136,8 @@ export async function createClient(raw: unknown): Promise<{ client: Client; exis
       website: website(r.website),
       address: str(r.address, 300),
       notes: str(r.notes, 5000),
+      channel: str(r.channel, 60),
+      category: str(r.category, 80),
       createdAt: t,
       updatedAt: t,
     } as Client,
@@ -164,6 +168,8 @@ export async function updateClient(id: string, raw: unknown) {
   if ("website" in r) set("website", r.website ? website(r.website) : null);
   set("address", optional(r, "address", 300));
   set("notes", optional(r, "notes", 5000));
+  set("channel", optional(r, "channel", 60));
+  set("category", optional(r, "category", 80));
   if (typeof r.archived === "boolean") set("archived", r.archived || null);
   next = withPhone(next, optional(r, "phone", 40));
   await store.putClient(next);
@@ -180,6 +186,7 @@ export async function deleteClient(id: string) {
   if (client.portal) await disablePortal(id).catch((err: Error) => console.error(`[portal] ${err.message}`));
   for (const p of await store.listProjects({ clientId: id })) await store.deleteProject(p.id);
   for (const t of await store.listTasks({ clientId: id })) await store.deleteTask(t.id);
+  await detachExpenses({ clientId: id });
   await store.deleteClient(id);
 }
 
@@ -210,6 +217,7 @@ export async function createProject(raw: unknown): Promise<Project> {
     currency: currency(r.currency) ?? defaultCurrency(),
     budget: money(r.budget, "Presupuesto"),
     hourlyRate: money(r.hourlyRate, "Precio por hora"),
+    ...(r.countHours === false ? { countHours: false } : {}),
     milestones: [],
     payments: [],
     time: [],
@@ -246,6 +254,7 @@ export async function updateProject(id: string, raw: unknown): Promise<Project> 
   if ("budget" in r) p.budget = money(r.budget, "Presupuesto");
   if ("hourlyRate" in r) p.hourlyRate = money(r.hourlyRate, "Precio por hora");
   if (typeof r.showPaymentsToClient === "boolean") p.showPaymentsToClient = r.showPaymentsToClient || undefined;
+  if (typeof r.countHours === "boolean") p.countHours = r.countHours ? undefined : false;
 
   // Hitos
   const am = r.addMilestone as Record<string, unknown> | undefined;
@@ -306,6 +315,7 @@ export async function deleteProject(id: string) {
   const project = await store.getProject(id);
   if (!project) throw notFound("Proyecto no encontrado");
   for (const t of await store.listTasks({ projectId: id })) await store.deleteTask(t.id);
+  await detachExpenses({ projectId: id });
   await store.deleteProject(id);
   schedulePublish(project.clientId);
 }

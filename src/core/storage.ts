@@ -3,6 +3,7 @@ import type { Lead, SavedLead } from "./lead";
 import type { Search } from "./search";
 import type { CrmSettings, LeadUpdate, Task } from "./crm";
 import type { Client, Project } from "./clients";
+import type { Expense } from "./finance";
 
 /** Copia de seguridad completa, independiente del almacenamiento. */
 export interface Backup {
@@ -21,6 +22,8 @@ export interface Backup {
   /** Clientes y proyectos. */
   clients?: Client[];
   projects?: Project[];
+  /** Gastos (Finanzas). */
+  expenses?: Expense[];
 }
 
 export interface ImportSummary {
@@ -92,6 +95,13 @@ export interface LeadStore {
   getProject(id: string): Promise<Project | undefined>;
   putProject(project: Project): Promise<void>;
   deleteProject(id: string): Promise<void>;
+
+  // ── Gastos (Finanzas) ──
+  listExpenses(): Promise<Expense[]>;
+  getExpense(id: string): Promise<Expense | undefined>;
+  /** Crea o reemplaza (por id). */
+  putExpense(expense: Expense): Promise<void>;
+  deleteExpense(id: string): Promise<void>;
 
   // ── Ajustes del CRM ──
   getSettings(): Promise<CrmSettings>;

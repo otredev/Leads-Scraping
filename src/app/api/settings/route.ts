@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { getStore } from "@/server/registry";
 import { handle, readJson } from "@/server/http";
+import { saveFinanceSettings } from "@/server/finance";
 import { saveLowRating, savePortalBrand, saveStages, saveTablePrefs, saveTags, saveTemplates } from "@/server/crm";
 
 export const GET = handle(async () => {
@@ -16,6 +17,7 @@ export const GET = handle(async () => {
  *   { lowRating: number }                 umbral de "Valoración baja"
  *   { templates: MessageTemplate[] }      plantillas de WhatsApp y email
  *   { portal: PortalBrandSettings }       datos de tu negocio en el portal del cliente
+ *   { finance: FinanceSettings }          coste de tu hora y moneda de Finanzas
  */
 export const PATCH = handle(async (request: Request) => {
   const body = await readJson<Record<string, unknown>>(request);
@@ -25,5 +27,6 @@ export const PATCH = handle(async (request: Request) => {
   if ("templates" in body) return Response.json(await saveTemplates(body.templates));
   if ("lowRating" in body) return Response.json(await saveLowRating(body.lowRating));
   if ("portal" in body) return Response.json(await savePortalBrand(body.portal));
+  if ("finance" in body) return Response.json(await saveFinanceSettings(body.finance));
   return Response.json({ error: "Nada que cambiar" }, { status: 400 });
 });

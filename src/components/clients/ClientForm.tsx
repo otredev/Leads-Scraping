@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import type { Client } from "@/core/clients";
+import { CHANNELS, LEAD_CHANNEL } from "@/core/finance";
 import type { SavedLead } from "@/core/lead";
 import { api, postJson } from "../data/DataProvider";
 import { LeadPicker, type LeadOption } from "../calendar/LeadPicker";
 import { Dialog, Field } from "./Dialog";
 
-type Draft = Pick<Client, "name" | "contactName" | "email" | "phone" | "website" | "address" | "notes">;
+type Draft = Pick<Client, "name" | "contactName" | "email" | "phone" | "website" | "address" | "notes" | "channel" | "category">;
 
-const empty: Draft = { name: "", contactName: "", email: "", phone: "", website: "", address: "", notes: "" };
+const empty: Draft = { name: "", contactName: "", email: "", phone: "", website: "", address: "", notes: "", channel: "", category: "" };
 
 /** Crear (a mano o desde un lead) o editar un cliente. */
 export function ClientForm({ client, onClose, onSaved }: { client?: Client; onClose(): void; onSaved(client: Client): void }) {
@@ -120,6 +121,24 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Client; onCl
             </Field>
             <Field label="Dirección" className="sm:col-span-2">
               <input className="input" value={draft.address ?? ""} onChange={set("address")} />
+            </Field>
+            <Field label="Canal de captación" hint="Para medir qué te trae clientes (Finanzas)">
+              <input
+                className="input"
+                list="client-channels"
+                value={draft.channel ?? ""}
+                onChange={set("channel")}
+                maxLength={60}
+                placeholder={client?.leadId ? LEAD_CHANNEL : "Referido, Web…"}
+              />
+              <datalist id="client-channels">
+                {CHANNELS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Sector" hint="Para ver qué tipo de cliente es más rentable">
+              <input className="input" value={draft.category ?? ""} onChange={set("category")} maxLength={80} placeholder="Clínica, restaurante…" />
             </Field>
             <Field label="Notas" className="sm:col-span-2">
               <textarea className="input min-h-20 resize-y" value={draft.notes ?? ""} onChange={set("notes")} />

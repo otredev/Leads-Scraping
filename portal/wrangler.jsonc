@@ -3,18 +3,25 @@
 //   npx wrangler d1 create leads-portal
 // y pega aquí el "database_id" que te devuelve.
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "leads-portal",
-  "main": "src/index.tsx",
-  "compatibility_date": "2026-10-01",
-  "observability": { "enabled": true },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "leads-portal",
-      "database_id": "PEGA-AQUI-EL-ID-DE-TU-BASE-DE-DATOS",
-      "migrations_dir": "migrations"
-    }
-  ]
-  // El secreto compartido con tu app NO va aquí: npx wrangler secret put PORTAL_SECRET
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "leads-portal",
+	"main": "src/index.tsx",
+	"compatibility_date": "2026-10-01",
+	"observability": {
+		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "leads-portal",
+			"database_id": "7a354385-ebb5-4041-83ab-6fff8afc5d93",
+			"migrations_dir": "migrations"
+		},
+		{
+			"binding": "leads_portal",
+			"database_name": "leads-portal",
+			"database_id": "7a354385-ebb5-4041-83ab-6fff8afc5d93"
+		}
+	]
+	// El secreto compartido con tu app NO va aquí: npx wrangler secret put PORTAL_SECRET
 }

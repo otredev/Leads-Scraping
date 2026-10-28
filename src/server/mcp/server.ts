@@ -17,6 +17,8 @@ import { getStats } from "../stats";
 import { createTask, listTasks, updateTask } from "../tasks";
 import { clientsOverview, createClient, createProject, updateProject } from "../clients";
 import { PROJECT_STATUSES, projectProgress, projectTotals, type ProjectStatus } from "@/core/clients";
+import { EXPENSE_CATEGORIES, EXPENSE_TYPES, RECURRENCES } from "@/core/finance";
+import { createExpense, getFinanceReport, listExpenses, parsePeriod } from "../finance";
 
 /**
  * Servidor MCP: expone el CRM a Claude (u otro cliente MCP).
@@ -491,6 +493,8 @@ export function createMcpServer() {
         website: z.string().max(300).optional(),
         address: z.string().max(300).optional(),
         notes: z.string().max(5000).optional(),
+        channel: z.string().max(60).optional().describe("Canal por el que llegó: Google Maps, Referido, Anuncios…"),
+        category: z.string().max(80).optional().describe("Sector del cliente (para Finanzas)"),
       },
     },
     run(async (a: Record<string, unknown>) => {
@@ -534,6 +538,7 @@ export function createMcpServer() {
         dueDate: z.string().nullable().optional(),
         budget: z.number().nonnegative().nullable().optional(),
         hourlyRate: z.number().nonnegative().nullable().optional(),
+        countHours: z.boolean().optional().describe("false: las horas de este proyecto no cuentan como coste en Finanzas (p. ej. precio cerrado)"),
         addMilestone: z.object({ title: z.string(), dueAt: z.string().optional(), visibleToClient: z.boolean().optional() }).optional(),
         updateMilestone: z
           .object({ id: z.string(), title: z.string().optional(), dueAt: z.string().nullable().optional(), done: z.boolean().optional(), visibleToClient: z.boolean().optional() })
@@ -689,6 +694,68 @@ export function createMcpServer() {
       inputSchema: { leadId: z.string(), url: z.string().nullable() },
     },
     run(async ({ leadId, url }: { leadId: string; url: string | null }) => ({ updated: await updateSaved([leadId], { pageUrl: url || null }) })),
+  );
+
+  // ── Finanzas ──
+
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  server.registerTool(
+    "get_finances",
+    {
+      title: "Finanzas y rentabilidad",
+      description:
+        "Ingresos, gastos y beneficio neto del periodo: por mes, por cliente (con su parte de gastos generales y de captación y el coste de tus horas), retorno por canal de captación, rentabilidad por sector/ciudad/canal y gastos recurrentes. Por defecto, los últimos 12 meses.",
+      inputSchema: {
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("AAAA-MM-DD"),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("AAAA-MM-DD (por defecto hoy)"),
+        all: z.boolean().optional().describe("Desde el primer dato registrado"),
+        clientId: z.string().optional().describe("Solo ese cliente"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ from, to, all, clientId }: { from?: string; to?: string; all?: boolean; clientId?: string }) => {
+      const end = to ?? ymd(new Date());
+      const d = new Date(`${end}T12:00:00`);
+      const start = from ?? ymd(new Date(d.getFullYear(), d.getMonth() - 11, 1));
+      const period = await parsePeriod(new URLSearchParams(all ? { period: "all", to: end } : { from: start, to: end }));
+      return getFinanceReport(period, { clientId });
+    }),
+  );
+
+  server.registerTool(
+    "list_expenses",
+    {
+      title: "Gastos",
+      description: "Gastos registrados (más recientes primero), con su tipo, categoría, cliente o canal y si se repiten.",
+      inputSchema: { clientId: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ clientId }: { clientId?: string }) => listExpenses({ clientId })),
+  );
+
+  server.registerTool(
+    "add_expense",
+    {
+      title: "Añadir gasto",
+      description:
+        "Registra un gasto (sin IVA). type: direct (de un cliente: clientId obligatorio), overhead (general del negocio) o acquisition (captación: channel obligatorio, el mismo nombre que el canal de los clientes). recurrence para suscripciones.",
+      inputSchema: {
+        concept: z.string().max(200),
+        amount: z.number().positive(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("AAAA-MM-DD; en recurrentes, el primer cargo. Por defecto hoy"),
+        type: z.enum(EXPENSE_TYPES.map((t) => t.id) as [string, ...string[]]).default("overhead"),
+        category: z.enum(EXPENSE_CATEGORIES.map((c) => c.id) as [string, ...string[]]).optional(),
+        clientId: z.string().optional(),
+        projectId: z.string().optional(),
+        channel: z.string().max(60).optional(),
+        recurrence: z.enum(RECURRENCES.map((r) => r.id) as [string, ...string[]]).optional(),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        vendor: z.string().max(120).optional(),
+        notes: z.string().max(2000).optional(),
+      },
+    },
+    run(async (a: Record<string, unknown>) => createExpense(a)),
   );
 
   return server;

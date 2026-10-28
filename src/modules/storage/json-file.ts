@@ -8,6 +8,7 @@ import { compareTasks } from "@/core/calendar";
 import { normalizeProject, type Client, type Project } from "@/core/clients";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
+import type { Expense } from "@/core/finance";
 
 /**
  * Almacenamiento en ficheros JSON dentro de DATA_DIR (por defecto ./data).
@@ -42,6 +43,10 @@ class JsonFileStore implements LeadStore {
 
   private get projectsFile() {
     return path.join(this.dir, "projects.json");
+  }
+
+  private get expensesFile() {
+    return path.join(this.dir, "expenses.json");
   }
 
   private get metaFile() {
@@ -387,6 +392,34 @@ class JsonFileStore implements LeadStore {
     });
   }
 
+  // ── Gastos ──
+
+  async listExpenses() {
+    return (await this.read<Expense[]>(this.expensesFile, [])).sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  async getExpense(id: string) {
+    return (await this.read<Expense[]>(this.expensesFile, [])).find((e) => e.id === id);
+  }
+
+  putExpense(expense: Expense) {
+    return this.lock(async () => {
+      const all = await this.read<Expense[]>(this.expensesFile, []);
+      const i = all.findIndex((e) => e.id === expense.id);
+      if (i === -1) all.push(expense);
+      else all[i] = expense;
+      await this.write(this.expensesFile, all);
+    });
+  }
+
+  deleteExpense(id: string) {
+    return this.lock(async () => {
+      const all = await this.read<Expense[]>(this.expensesFile, []);
+      await this.write(this.expensesFile, all.filter((e) => e.id !== id));
+    });
+  }
+
+
   // ── Datos internos de los módulos ──
 
   async getMeta<T>(key: string) {
@@ -424,6 +457,7 @@ class JsonFileStore implements LeadStore {
       tasks: await this.listTasks(),
       clients: await this.listClients(),
       projects: await this.listProjects(),
+      expenses: await this.listExpenses(),
     };
   }
 
@@ -456,6 +490,7 @@ class JsonFileStore implements LeadStore {
     // Clientes y proyectos: solo se añaden los que no existan (por id).
     for (const c of backup.clients ?? []) if (!(await this.getClient(c.id))) await this.putClient(c);
     for (const p of backup.projects ?? []) if (!(await this.getProject(p.id))) await this.putProject(p);
+    for (const e of backup.expenses ?? []) if (!(await this.getExpense(e.id))) await this.putExpense(e);
     return summary;
   }
 }

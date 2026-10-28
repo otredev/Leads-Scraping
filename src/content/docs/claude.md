@@ -8,12 +8,13 @@ order: 9
 
 ## Claude (MCP)
 
-La app incluye un servidor MCP en `http://localhost:3000/api/mcp`. Con él, Claude puede buscar negocios, guardarlos, cambiarlos de etapa, crear tareas, preparar mensajes, completar redes y gestionar clientes y proyectos. Por ejemplo:
+La app incluye un servidor MCP en `http://localhost:3000/api/mcp`. Con él, Claude puede buscar negocios, guardarlos, cambiarlos de etapa, crear tareas, preparar mensajes, completar redes, gestionar clientes y proyectos y consultar tus finanzas. Por ejemplo:
 
 - "Busca fisioterapeutas en Sevilla y guarda los que no tienen web."
 - "¿Qué tareas tengo hoy?"
 - "Pasa a Interesados los abogados con más de 4,5 estrellas."
 - "Crea el proyecto 'Web corporativa' para la Clínica Sonrisa con entrega el 30 de noviembre."
+- "Apunta 30 € al mes de proxies como gasto de captación de Google Maps." · "¿Qué cliente me deja más beneficio este año?"
 
 Los comandos para conectarlo (Claude Code y Claude Desktop) están en [Ajustes → Claude (MCP)](/ajustes). La app tiene que estar abierta.
 

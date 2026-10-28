@@ -332,6 +332,12 @@ function TimeCard({ project, totals, onPatch }: { project: Project; totals: Tota
   return (
     <Card
       title="Horas"
+      actions={
+        <label className="flex items-center gap-1.5 text-xs text-fg-2" title="En Finanzas, las horas se restan del beneficio al coste de tu hora">
+          <input type="checkbox" className="size-3.5 accent-primary" checked={project.countHours !== false} onChange={(e) => void onPatch({ countHours: e.target.checked })} />
+          Cuentan como coste
+        </label>
+      }
       description={
         totals.minutes
           ? `${formatMinutes(totals.minutes)} en total${totals.timeCost !== undefined ? ` · ${formatMoney(totals.timeCost, project.currency)} a ${formatMoney(project.hourlyRate, project.currency)}/h` : ""}`
