@@ -21,6 +21,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_TYPES, RECURRENCES } from "@/core/finance";
 import { createExpense, getFinanceReport, listExpenses, parsePeriod } from "../finance";
 import { createDocument, getDocument, listDocuments, listTemplates, updateDocument } from "../documents";
 import { DOC_TYPES } from "@/core/documents";
+import { getThread, listConversations, sendMessage, syncInbox } from "../messages";
 
 /**
  * Servidor MCP: expone el CRM a Claude (u otro cliente MCP).
@@ -815,6 +816,32 @@ export function createMcpServer() {
       const view = Object.keys(patch).length ? await updateDocument(doc.id, patch) : await getDocument(doc.id);
       return { id: view.id, number: view.number, title: view.renderedTitle, status: view.status, missing: view.missing, total: view.totals.total, open: `/documentos/${view.id}` };
     }),
+  );
+
+  // ── Mensajes ──
+
+  server.registerTool(
+    "list_messages",
+    {
+      title: "Mensajes de clientes",
+      description: "Sin clientId: conversaciones con mensajes sin leer y el último de cada una. Con clientId: toda la conversación (mensajes del cliente, tus respuestas y notas internas) y si aceptó las condiciones del portal.",
+      inputSchema: { clientId: z.string().optional() },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ clientId }: { clientId?: string }) => {
+      await syncInbox().catch(() => undefined);
+      return clientId ? getThread(clientId) : listConversations();
+    }),
+  );
+
+  server.registerTool(
+    "add_note",
+    {
+      title: "Nota interna",
+      description: "Guarda una nota interna en la conversación de un cliente (solo la ves tú; nunca se envía al cliente). Para responder al cliente, el usuario lo hace desde Mensajes.",
+      inputSchema: { clientId: z.string(), body: z.string().max(8000), projectId: z.string().optional() },
+    },
+    run(async ({ clientId, body, projectId }: { clientId: string; body: string; projectId?: string }) => sendMessage(clientId, { body, projectId, internal: true })),
   );
 
   return server;

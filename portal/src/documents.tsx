@@ -89,7 +89,7 @@ export function DocumentPage({
   const verb = doc.type === "contract" ? "firmado" : "aceptado";
   return (
     <Layout title={doc.title} brand={snap.brand.name}>
-      <Header snap={snap} back={`/p/${token}`} backLabel="Volver" />
+      <Header snap={snap} token={token} back={`/p/${token}`} backLabel="Volver" />
       <main>
         {acceptance && (
           <p class="callout ok" role="status">
@@ -227,7 +227,7 @@ export function DocumentPage({
         <p class="muted small center-text">Para guardarlo en PDF, usa Imprimir → Guardar como PDF en tu navegador.</p>
         <Contact snap={snap} />
       </main>
-      <Footer snap={snap} />
+      <Footer snap={snap} token={token} />
     </Layout>
   );
 }

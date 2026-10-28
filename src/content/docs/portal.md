@@ -6,13 +6,14 @@ order: 8
 
 # Portal del cliente
 
-Cada cliente puede tener un **enlace privado** a una web donde ve:
+Cada cliente puede tener un **enlace privado** a una web donde, tras **aceptar el aviso legal y la política de privacidad** la primera vez, ve:
 
 - Sus proyectos con el avance, el estado y la próxima entrega.
 - El **cronograma** (hitos hechos, próximos y retrasados).
 - Las **tareas** pendientes y completadas.
 - El **presupuesto y los pagos**, solo si lo activas en el proyecto.
 - Sus **propuestas, contratos y facturas** enviados, para leerlos, guardarlos en PDF y **aceptar o firmar** (ver [Propuestas, contratos y facturas](/ayuda/documentos)).
+- Sus **mensajes** contigo: puede escribirte y ver tus respuestas (ver [Mensajes con clientes](/ayuda/mensajes)).
 - Tus datos de contacto, con botón de WhatsApp y email.
 - Las páginas legales: aviso legal, privacidad y cookies.
 
@@ -36,7 +37,9 @@ En la ficha del cliente, tarjeta **Portal del cliente**:
 - **Renovar enlace**: crea uno nuevo y el anterior deja de funcionar.
 - **Desactivar portal**: el enlace deja de funcionar.
 
-Si ya tenías el portal desplegado, para los documentos aplica la migración nueva y vuelve a publicarlo: `cd portal && npm run db:migrate:remote && npm run deploy`.
+Si ya tenías el portal desplegado, cada vez que haya migraciones nuevas (documentos, mensajes…) aplícalas y vuelve a publicarlo: `cd portal && npm run db:migrate:remote && npm run deploy`.
+
+Pulsar el **nombre de tu negocio** arriba a la izquierda lleva siempre a la página principal del cliente, también desde las páginas legales.
 
 Se **actualiza solo**: cada cambio en sus proyectos, hitos, tareas o documentos se publica a los 2 segundos, mientras la app esté encendida. Si algo no se actualiza, pulsa **Publicar ahora**.
 

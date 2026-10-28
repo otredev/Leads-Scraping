@@ -235,8 +235,9 @@ export async function disablePortal(clientId: string) {
   if (!client) throw bad("Cliente no encontrado", 404);
   if (portalConfig().configured) {
     // Antes de borrarlo, recoge las aceptaciones pendientes (se borran con el portal).
-    const { syncAcceptances } = await import("./documents");
+    const [{ syncAcceptances }, { syncInbox }] = await Promise.all([import("./documents"), import("./messages")]);
     await syncAcceptances({ force: true }).catch(() => undefined);
+    await syncInbox({ force: true }).catch(() => undefined);
     const res = await portalFetch(`/portals/${encodeURIComponent(clientId)}`, { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw await portalError(res);
   }

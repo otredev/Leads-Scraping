@@ -8,6 +8,7 @@ import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData
 import type { Search } from "@/core/search";
 import type { Expense } from "@/core/finance";
 import type { DocTemplate, Document } from "@/core/documents";
+import type { Message } from "@/core/messages";
 
 /**
  * Almacenamiento en MongoDB (Atlas o local).
@@ -109,6 +110,7 @@ const projectsCol = async () => (await db()).collection<Doc<Project>>("projects"
 const expensesCol = async () => (await db()).collection<Doc<Expense>>("expenses");
 const documentsCol = async () => (await db()).collection<Doc<Document>>("documents");
 const docTemplatesCol = async () => (await db()).collection<Doc<DocTemplate>>("doc_templates");
+const messagesCol = async () => (await db()).collection<Doc<Message>>("messages");
 let metaQueue: Promise<unknown> = Promise.resolve();
 const metaCol = async () => (await db()).collection<{ _id: string; value: unknown }>("meta");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
@@ -493,6 +495,26 @@ class MongoStore implements LeadStore {
     await (await docTemplatesCol()).deleteOne({ _id: id });
   }
 
+  // ── Mensajes ──
+
+  async listMessages(opts: { clientId?: string } = {}) {
+    const docs = await (await messagesCol()).find(opts.clientId ? { clientId: opts.clientId } : {}).sort({ createdAt: 1 }).toArray();
+    return docs.map((d) => fromDoc<Message>(d)!);
+  }
+
+  async putMessages(messages: Message[]) {
+    if (!messages.length) return;
+    await (await messagesCol()).bulkWrite(
+      messages.map(({ id, ...rest }) => ({ replaceOne: { filter: { _id: id }, replacement: clean(rest) as Doc<Message>, upsert: true } })),
+      { ordered: false },
+    );
+  }
+
+  async deleteMessages(opts: { clientId?: string; id?: string }) {
+    if (opts.id) await (await messagesCol()).deleteOne({ _id: opts.id });
+    else if (opts.clientId) await (await messagesCol()).deleteMany({ clientId: opts.clientId });
+  }
+
   // ── Datos internos de los módulos ──
 
   async getMeta<T>(key: string) {
@@ -538,6 +560,7 @@ class MongoStore implements LeadStore {
       expenses: await this.listExpenses(),
       documents: await this.listDocuments(),
       docTemplates: await this.listDocTemplates(),
+      messages: await this.listMessages(),
     };
   }
 
@@ -589,6 +612,7 @@ class MongoStore implements LeadStore {
       [await expensesCol(), backup.expenses ?? []],
       [await documentsCol(), backup.documents ?? []],
       [await docTemplatesCol(), backup.docTemplates ?? []],
+      [await messagesCol(), backup.messages ?? []],
     ] as const) {
       if (!list.length) continue;
       await (col as Awaited<ReturnType<typeof clientsCol>>).bulkWrite(

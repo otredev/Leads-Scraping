@@ -4,6 +4,10 @@
  * - /p/<token>            proyectos del cliente
  * - /p/<token>/<proyecto> avance, cronograma, tareas y pagos de un proyecto
  * - /p/<token>/d/<doc>    propuesta, contrato o factura (y aceptarla)
+ * - /p/<token>/mensajes   mensajes entre el cliente y tú
+ * - /p/<token>/legal/<p>  páginas legales dentro del portal
+ *
+ * Antes de ver nada, el cliente acepta el aviso legal y la privacidad (tabla consents).
  * - /legal/<página>      aviso legal, privacidad y cookies (con tus datos de Ajustes)
  * - /api/*                API privada para que tu app publique (Bearer PORTAL_SECRET)
  *
@@ -12,11 +16,14 @@
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
+import type { Context } from "hono";
 import type { PortalSite, PortalSnapshot } from "../../src/core/portal";
 import { CSS } from "./styles";
 import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
 import { DocumentPage } from "./documents";
-import { LEGAL_PAGES, LegalPage, type LegalSlug } from "./legal";
+import { LEGAL_PAGES, LegalPage, policyVersion, type LegalSlug } from "./legal";
+import { ConsentPage } from "./consent";
+import { MESSAGE_MAX_LENGTH, MessagesPage, type PortalMessage } from "./messages";
 
 type Env = { DB: D1Database; PORTAL_SECRET: string };
 
@@ -97,52 +104,152 @@ app.use("/p/*", async (c, next) => {
   c.header("Cache-Control", "private, no-store");
 });
 
-app.get("/p/:token", async (c) => {
-  const snap = await loadPortal(c, c.req.param("token"));
-  if (!snap) return c.html(<NotFoundPage />, 404);
-  return c.html(<ProjectsPage snap={snap} token={c.req.param("token")} />);
-});
+type Ctx = Context<{ Bindings: Env }>;
 
-app.get("/p/:token/:projectId", async (c) => {
-  const snap = await loadPortal(c, c.req.param("token"));
-  const project = snap?.projects.find((p) => p.id === c.req.param("projectId"));
-  if (!snap || !project) return c.html(<NotFoundPage />, 404);
-  return c.html(<ProjectPage snap={snap} project={project} token={c.req.param("token")} />);
-});
+/**
+ * Solo formularios enviados desde el propio portal. Los navegadores mandan
+ * Sec-Fetch-Site siempre; Origin llega como "null" por la política no-referrer,
+ * así que solo se usa si falta Sec-Fetch-Site (navegadores antiguos). Además,
+ * sin el token del enlace no se puede enviar nada.
+ */
+const sameOrigin = (c: Ctx) => {
+  const site = c.req.header("sec-fetch-site");
+  if (site) return site === "same-origin";
+  const origin = c.req.header("origin");
+  return !origin || origin === "null" || origin === new URL(c.req.url).origin;
+};
+const clientIp = (c: Ctx) => c.req.header("cf-connecting-ip") ?? null;
+const clientUa = (c: Ctx) => (c.req.header("user-agent") ?? "").slice(0, 300) || null;
+const cleanName = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 120) : "");
 
-app.get("/p/:token/d/:docId", async (c) => {
-  const token = c.req.param("token");
+/** ¿Aceptó este cliente la versión actual de las políticas? */
+async function consentState(c: Ctx, clientId: string) {
+  const version = await policyVersion(await loadSite(c.env.DB));
+  const rows = await c.env.DB.prepare("SELECT version FROM consents WHERE client_id = ?").bind(clientId).all<{ version: string }>();
+  return { version, ok: rows.results.some((r) => r.version === version), updated: rows.results.length > 0 };
+}
+
+/**
+ * Carga el portal y exige la aceptación de las políticas: si falta, muestra la
+ * página de aceptación en la misma dirección (después vuelve aquí).
+ */
+async function gate(c: Ctx, render: (snap: PortalSnapshot, token: string) => Response | Promise<Response>) {
+  const token = c.req.param("token")!;
   const snap = await loadPortal(c, token);
-  const doc = snap?.documents?.find((d) => d.id === c.req.param("docId"));
-  if (!snap || !doc) return c.html(<NotFoundPage />, 404);
-  const stored = doc.acceptable ? await findAcceptance(c.env.DB, snap.client.id, doc.id, doc.acceptable.sentAt) : null;
-  const acceptance = doc.acceptance ?? (stored ? { name: stored.name, at: stored.accepted_at } : undefined);
-  return c.html(<DocumentPage snap={snap} doc={doc} token={token} acceptance={acceptance} error={c.req.query("error")} />);
+  if (!snap) return c.html(<NotFoundPage />, 404);
+  const consent = await consentState(c, snap.client.id);
+  if (!consent.ok) return c.html(<ConsentPage snap={snap} token={token} next={new URL(c.req.url).pathname} updated={consent.updated} error={c.req.query("consent")} />);
+  return render(snap, token);
+}
+
+async function loadMessages(db: D1Database, clientId: string): Promise<PortalMessage[]> {
+  const { results } = await db
+    .prepare("SELECT id, author, body, project_name, created_at FROM messages WHERE client_id = ? ORDER BY seq DESC LIMIT 200")
+    .bind(clientId)
+    .all<{ id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
+  return results.reverse().map((r) => ({ id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
+}
+
+app.get("/p/:token", (c) => gate(c, async (snap, token) => c.html(<ProjectsPage snap={snap} token={token} messages={await loadMessages(c.env.DB, snap.client.id)} />)));
+
+/** Aceptación de las políticas. */
+app.post("/p/:token/consent", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
+  const token = c.req.param("token");
+  if (!sameOrigin(c)) return c.text("Origen no permitido", 403);
+  const snap = await loadPortal(c, token, { countVisit: false });
+  if (!snap) return c.html(<NotFoundPage />, 404);
+  const form = await c.req.parseBody();
+  const next = typeof form.next === "string" && form.next.startsWith(`/p/${token}`) ? form.next : `/p/${token}`;
+  const name = cleanName(form.name);
+  const back = (q: string) => c.redirect(`${next}?consent=${q}`, 303);
+  if (name.length < 3) return back("nombre");
+  if (form.agree !== "1") return back("casilla");
+  const { version } = await consentState(c, snap.client.id);
+  await c.env.DB.prepare("INSERT OR IGNORE INTO consents (client_id, version, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(snap.client.id, version, name, new Date().toISOString(), clientIp(c), clientUa(c))
+    .run();
+  return c.redirect(next, 303);
 });
+
+/** Páginas legales dentro del portal (sin pedir la aceptación: hay que poder leerlas antes). */
+app.get("/p/:token/legal/:page", async (c) => {
+  const token = c.req.param("token");
+  const page = c.req.param("page") as LegalSlug;
+  const snap = await loadPortal(c, token, { countVisit: false });
+  if (!snap || !Object.hasOwn(LEGAL_PAGES, page)) return c.html(<NotFoundPage />, 404);
+  return c.html(<LegalPage page={page} site={await loadSite(c.env.DB)} token={token} />);
+});
+
+app.get("/p/:token/mensajes", (c) =>
+  gate(c, async (snap, token) => {
+    // Para el "Visto" de tu app.
+    c.executionCtx.waitUntil(
+      c.env.DB.prepare("INSERT INTO message_seen (client_id, seen_at) VALUES (?1, ?2) ON CONFLICT(client_id) DO UPDATE SET seen_at = ?2")
+        .bind(snap.client.id, new Date().toISOString())
+        .run(),
+    );
+    return c.html(<MessagesPage snap={snap} token={token} messages={await loadMessages(c.env.DB, snap.client.id)} error={c.req.query("error")} sent={c.req.query("ok") === "1"} />);
+  }),
+);
+
+app.post("/p/:token/mensajes", bodyLimit({ maxSize: 16 * 1024 }), (c) => {
+  if (!sameOrigin(c)) return c.text("Origen no permitido", 403);
+  return gate(c, async (snap, token) => {
+    const back = (q: string) => c.redirect(`/p/${token}/mensajes?${q}#escribir`, 303);
+    const form = await c.req.parseBody();
+    const body = typeof form.body === "string" ? form.body.replace(/\r\n/g, "\n").trim() : "";
+    if (!body) return back("error=vacio");
+    if (body.length > MESSAGE_MAX_LENGTH) return back("error=largo");
+    const recent = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM messages WHERE client_id = ? AND author = 'client' AND created_at > ?")
+      .bind(snap.client.id, new Date(Date.now() - 3600_000).toISOString())
+      .first<{ n: number }>();
+    if ((recent?.n ?? 0) >= 30) return back("error=limite");
+    const project = typeof form.projectId === "string" ? snap.projects.find((p) => p.id === form.projectId) : undefined;
+    await c.env.DB.prepare("INSERT INTO messages (id, client_id, author, body, project_id, project_name, created_at) VALUES (?, ?, 'client', ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), snap.client.id, body, project?.id ?? null, project?.name ?? null, new Date().toISOString())
+      .run();
+    return back("ok=1");
+  });
+});
+
+app.get("/p/:token/d/:docId", (c) =>
+  gate(c, async (snap, token) => {
+    const doc = snap.documents?.find((d) => d.id === c.req.param("docId"));
+    if (!doc) return c.html(<NotFoundPage />, 404);
+    const stored = doc.acceptable ? await findAcceptance(c.env.DB, snap.client.id, doc.id, doc.acceptable.sentAt) : null;
+    const acceptance = doc.acceptance ?? (stored ? { name: stored.name, at: stored.accepted_at } : undefined);
+    return c.html(<DocumentPage snap={snap} doc={doc} token={token} acceptance={acceptance} error={c.req.query("error")} />);
+  }),
+);
 
 /** El cliente acepta una propuesta o firma un contrato: nombre + casilla. */
-app.post("/p/:token/d/:docId/accept", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
-  const token = c.req.param("token");
-  const docId = c.req.param("docId");
-  const back = (q = "") => c.redirect(`/p/${token}/d/${docId}${q}`, 303);
-  // Solo formularios enviados desde el propio portal.
-  const origin = c.req.header("origin");
-  if (origin && origin !== new URL(c.req.url).origin) return c.text("Origen no permitido", 403);
-  const snap = await loadPortal(c, token, { countVisit: false });
-  const doc = snap?.documents?.find((d) => d.id === docId);
-  if (!snap || !doc) return c.html(<NotFoundPage />, 404);
-  if (!doc.acceptable) return back();
-  const form = await c.req.parseBody();
-  const name = typeof form.name === "string" ? form.name.trim().replace(/\s+/g, " ").slice(0, 120) : "";
-  if (name.length < 3) return back("?error=nombre");
-  if (form.agree !== "1") return back("?error=casilla");
-  await c.env.DB.prepare(
-    "INSERT OR IGNORE INTO acceptances (client_id, doc_id, sent_at, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)",
-  )
-    .bind(snap.client.id, doc.id, doc.acceptable.sentAt, name, new Date().toISOString(), c.req.header("cf-connecting-ip") ?? null, (c.req.header("user-agent") ?? "").slice(0, 300) || null)
-    .run();
-  return back("?ok=1");
+app.post("/p/:token/d/:docId/accept", bodyLimit({ maxSize: 8 * 1024 }), (c) => {
+  if (!sameOrigin(c)) return c.text("Origen no permitido", 403);
+  return gate(c, async (snap, token) => {
+    const docId = c.req.param("docId");
+    const back = (q = "") => c.redirect(`/p/${token}/d/${docId}${q}`, 303);
+    const doc = snap.documents?.find((d) => d.id === docId);
+    if (!doc) return c.html(<NotFoundPage />, 404);
+    if (!doc.acceptable) return back();
+    const form = await c.req.parseBody();
+    const name = cleanName(form.name);
+    if (name.length < 3) return back("?error=nombre");
+    if (form.agree !== "1") return back("?error=casilla");
+    await c.env.DB.prepare("INSERT OR IGNORE INTO acceptances (client_id, doc_id, sent_at, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(snap.client.id, doc.id, doc.acceptable.sentAt, name, new Date().toISOString(), clientIp(c), clientUa(c))
+      .run();
+    return back("?ok=1");
+  });
 });
+
+// Va la última: /p/<token>/<proyecto> no debe tapar /mensajes ni /consent.
+app.get("/p/:token/:projectId", (c) =>
+  gate(c, (snap, token) => {
+    const project = snap.projects.find((p) => p.id === c.req.param("projectId"));
+    if (!project) return c.html(<NotFoundPage />, 404);
+    return c.html(<ProjectPage snap={snap} project={project} token={token} />);
+  }),
+);
 
 // ── API privada (tu app publica aquí) ──
 
@@ -217,6 +324,57 @@ api.get("/acceptances", async (c) => {
   );
 });
 
+/**
+ * Novedades para tu app: mensajes con seq > after, aceptaciones de las políticas
+ * y cuándo vio cada cliente sus mensajes.
+ */
+api.get("/inbox", async (c) => {
+  const after = Number(c.req.query("after") ?? 0) || 0;
+  const [messages, consents, seen] = await c.env.DB.batch([
+    c.env.DB.prepare("SELECT seq, id, client_id, author, body, project_id, project_name, created_at FROM messages WHERE seq > ? ORDER BY seq LIMIT 500").bind(after),
+    c.env.DB.prepare("SELECT client_id, version, name, accepted_at, ip, user_agent FROM consents ORDER BY accepted_at"),
+    c.env.DB.prepare("SELECT client_id, seen_at FROM message_seen"),
+  ]);
+  type M = { seq: number; id: string; client_id: string; author: string; body: string; project_id: string | null; project_name: string | null; created_at: string };
+  type C = { client_id: string; version: string; name: string; accepted_at: string; ip: string | null; user_agent: string | null };
+  return c.json({
+    messages: (messages.results as M[]).map((m) => ({
+      seq: m.seq,
+      id: m.id,
+      clientId: m.client_id,
+      author: m.author,
+      body: m.body,
+      createdAt: m.created_at,
+      ...(m.project_id ? { projectId: m.project_id } : {}),
+      ...(m.project_name ? { projectName: m.project_name } : {}),
+    })),
+    consents: (consents.results as C[]).map((r) => ({
+      clientId: r.client_id,
+      version: r.version,
+      name: r.name,
+      acceptedAt: r.accepted_at,
+      ...(r.ip ? { ip: r.ip } : {}),
+      ...(r.user_agent ? { userAgent: r.user_agent } : {}),
+    })),
+    seen: Object.fromEntries((seen.results as { client_id: string; seen_at: string }[]).map((r) => [r.client_id, r.seen_at])),
+  });
+});
+
+/** Tu respuesta a un cliente: { id, body, projectId?, projectName?, createdAt }. */
+api.post("/portals/:clientId/messages", bodyLimit({ maxSize: 32 * 1024 }), async (c) => {
+  const m = await c.req.json<{ id?: string; body?: string; projectId?: string; projectName?: string; createdAt?: string }>().catch(() => undefined);
+  const clientId = c.req.param("clientId");
+  if (!m?.id || !/^[a-f0-9-]{36}$/.test(m.id) || typeof m.body !== "string" || !m.body.trim() || m.body.length > 8000) return c.json({ error: "Mensaje no válido" }, 400);
+  const exists = await c.env.DB.prepare("SELECT 1 FROM portals WHERE client_id = ?").bind(clientId).first();
+  if (!exists) return c.json({ error: "Este cliente no tiene portal" }, 404);
+  const createdAt = m.createdAt && !Number.isNaN(Date.parse(m.createdAt)) ? m.createdAt : new Date().toISOString();
+  await c.env.DB.prepare("INSERT OR IGNORE INTO messages (id, client_id, author, body, project_id, project_name, created_at) VALUES (?, ?, 'admin', ?, ?, ?, ?)")
+    .bind(m.id, clientId, m.body.trim(), m.projectId ?? null, m.projectName ?? null, createdAt)
+    .run();
+  const row = await c.env.DB.prepare("SELECT seq FROM messages WHERE id = ?").bind(m.id).first<{ seq: number }>();
+  return c.json({ ok: true, seq: row?.seq });
+});
+
 /** Estado: cuándo se publicó y cuándo lo vio el cliente por última vez. */
 api.get("/portals/:clientId", async (c) => {
   const row = await c.env.DB.prepare("SELECT published_at, last_viewed_at, views FROM portals WHERE client_id = ?")
@@ -231,6 +389,9 @@ api.delete("/portals/:clientId", async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM portals WHERE client_id = ?").bind(c.req.param("clientId")),
     c.env.DB.prepare("DELETE FROM acceptances WHERE client_id = ?").bind(c.req.param("clientId")),
+    c.env.DB.prepare("DELETE FROM consents WHERE client_id = ?").bind(c.req.param("clientId")),
+    c.env.DB.prepare("DELETE FROM messages WHERE client_id = ?").bind(c.req.param("clientId")),
+    c.env.DB.prepare("DELETE FROM message_seen WHERE client_id = ?").bind(c.req.param("clientId")),
   ]);
   return c.body(null, 204);
 });

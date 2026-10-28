@@ -10,6 +10,8 @@
  * su portal (fase B).
  */
 
+import type { PortalConsent } from "./messages";
+
 export const PROJECT_STATUSES = [
   { id: "proposal", label: "Propuesta" },
   { id: "active", label: "En curso" },
@@ -47,6 +49,10 @@ export interface Client {
   taxId?: string;
   /** Razón social si es distinta del nombre (para facturas y contratos). */
   legalName?: string;
+  /** Aceptaciones de las políticas del portal (historial: una por versión de los textos). */
+  consents?: PortalConsent[];
+  /** Última vez que el cliente abrió sus mensajes en el portal. */
+  messagesSeenAt?: string;
   archived?: boolean;
   /** Portal del cliente (enlace privado). El token solo se guarda aquí; el portal guarda su hash. */
   portal?: ClientPortal;

@@ -1,6 +1,7 @@
 import type { Child } from "hono/jsx";
 import type { PortalItem, PortalProject, PortalSnapshot } from "../../src/core/portal";
 import { DocumentsList } from "./documents";
+import { MessagesCard, type PortalMessage } from "./messages";
 
 // ── Formatos (en la zona horaria de tu app) ──
 
@@ -67,15 +68,29 @@ export function Layout({ title, children, brand }: { title: string; children: Ch
   );
 }
 
-export function Header({ snap, back, backLabel = "Todos los proyectos" }: { snap: PortalSnapshot; back?: string; backLabel?: string }) {
+/** Marca del portal: lleva siempre a la página principal del cliente. */
+export function Brand({ name, token }: { name: string; token?: string }) {
+  const inner = (
+    <>
+      <span class="logo" aria-hidden="true">
+        {name.slice(0, 1).toUpperCase()}
+      </span>
+      {name}
+    </>
+  );
+  return token ? (
+    <a class="brand" href={`/p/${token}`} aria-label={`${name}: inicio`}>
+      {inner}
+    </a>
+  ) : (
+    <span class="brand">{inner}</span>
+  );
+}
+
+export function Header({ snap, token, back, backLabel = "Todos los proyectos" }: { snap: PortalSnapshot; token: string; back?: string; backLabel?: string }) {
   return (
     <header class="top">
-      <span class="brand">
-        <span class="logo" aria-hidden="true">
-          {snap.brand.name.slice(0, 1).toUpperCase()}
-        </span>
-        {snap.brand.name}
-      </span>
+      <Brand name={snap.brand.name} token={token} />
       {back && (
         <a class="back" href={back}>
           ← {backLabel}
@@ -118,18 +133,26 @@ export function Contact({ snap }: { snap: PortalSnapshot }) {
   );
 }
 
-/** Enlaces a las páginas legales (en el pie de todas las páginas). */
-export function LegalLinks() {
+/** Enlaces a las páginas legales (en el pie). Con token, se abren dentro del portal del cliente. */
+export function LegalLinks({ token, current }: { token?: string; current?: string }) {
+  const base = token ? `/p/${token}/legal` : "/legal";
+  const links = [
+    ["aviso-legal", "Aviso legal"],
+    ["privacidad", "Privacidad"],
+    ["cookies", "Cookies"],
+  ];
   return (
     <nav class="legal-links" aria-label="Información legal">
-      <a href="/legal/aviso-legal">Aviso legal</a>
-      <a href="/legal/privacidad">Privacidad</a>
-      <a href="/legal/cookies">Cookies</a>
+      {links.map(([slug, label]) => (
+        <a href={`${base}/${slug}`} aria-current={slug === current ? "page" : undefined}>
+          {label}
+        </a>
+      ))}
     </nav>
   );
 }
 
-export function Footer({ snap }: { snap: PortalSnapshot }) {
+export function Footer({ snap, token }: { snap: PortalSnapshot; token: string }) {
   return (
     <footer class="foot">
       <p>
@@ -143,7 +166,7 @@ export function Footer({ snap }: { snap: PortalSnapshot }) {
           </>
         )}
       </p>
-      <LegalLinks />
+      <LegalLinks token={token} />
     </footer>
   );
 }
@@ -180,12 +203,12 @@ export function NotFoundPage({ error }: { error?: boolean }) {
   );
 }
 
-export function ProjectsPage({ snap, token }: { snap: PortalSnapshot; token: string }) {
+export function ProjectsPage({ snap, token, messages }: { snap: PortalSnapshot; token: string; messages: PortalMessage[] }) {
   const tz = snap.timeZone;
   const name = snap.client.contactName ?? snap.client.name;
   return (
     <Layout title={snap.client.name} brand={snap.brand.name}>
-      <Header snap={snap} />
+      <Header snap={snap} token={token} />
       <main>
         <section class="hero">
           <h1>Hola, {name}</h1>
@@ -225,10 +248,11 @@ export function ProjectsPage({ snap, token }: { snap: PortalSnapshot; token: str
             })}
           </ul>
         )}
+        <MessagesCard snap={snap} token={token} messages={messages} />
         <DocumentsList snap={snap} token={token} />
         <Contact snap={snap} />
       </main>
-      <Footer snap={snap} />
+      <Footer snap={snap} token={token} />
     </Layout>
   );
 }
@@ -273,7 +297,7 @@ export function ProjectPage({ snap, project: p, token }: { snap: PortalSnapshot;
 
   return (
     <Layout title={p.name} brand={snap.brand.name}>
-      <Header snap={snap} back={backHref} />
+      <Header snap={snap} token={token} back={backHref} />
       <main>
         <section class="card">
           <div class="row">
@@ -367,7 +391,7 @@ export function ProjectPage({ snap, project: p, token }: { snap: PortalSnapshot;
 
         <Contact snap={snap} />
       </main>
-      <Footer snap={snap} />
+      <Footer snap={snap} token={token} />
     </Layout>
   );
 }

@@ -192,6 +192,7 @@ export async function deleteClient(id: string) {
   for (const p of await store.listProjects({ clientId: id })) await store.deleteProject(p.id);
   for (const t of await store.listTasks({ clientId: id })) await store.deleteTask(t.id);
   await detachExpenses({ clientId: id });
+  await store.deleteMessages({ clientId: id });
   await store.deleteClient(id);
 }
 

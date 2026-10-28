@@ -67,10 +67,17 @@ Las propuestas, contratos y facturas que envías desde la app aparecen en el por
 
 Si actualizas un portal ya desplegado: `npm run db:migrate:remote` y `npm run deploy`.
 
+## Condiciones y mensajes
+
+- **Aceptación de condiciones**: antes de ver su portal, el cliente acepta el aviso legal y la política de privacidad (nombre + casilla). Se guarda en la tabla `consents` con la fecha, la IP, el navegador y la versión de los textos (cambia si cambias tus datos legales, y entonces se pide de nuevo). Las páginas legales se pueden leer antes, en `/p/<token>/legal/<página>`.
+- **Mensajes**: `/p/<token>/mensajes`. El cliente escribe (máximo 30 por hora) y ve tus respuestas. Tabla `messages`; `message_seen` guarda cuándo los vio.
+- Tu app recoge todo con `GET /api/inbox?after=<seq>` y responde con `POST /api/portals/<cliente>/messages`.
+- Migración `0004_consents_messages.sql`. Si actualizas un portal ya desplegado: `npm run db:migrate:remote` y `npm run deploy`.
+
 ## Seguridad
 
 - Cada cliente tiene un enlace con un token aleatorio. El portal solo guarda su hash, no el token.
 - Puedes renovar el enlace (el anterior deja de funcionar) o desactivar el portal desde la ficha del cliente.
 - La API de publicación exige `PORTAL_SECRET`. Las páginas no se indexan en buscadores y no envían el enlace a otras webs (sin Referer).
-- Los formularios de aceptación solo se admiten desde el propio portal (CSP `form-action 'self'` y comprobación de `Origin`). El HTML escrito a mano en los documentos se muestra como texto.
+- Los formularios (aceptaciones y mensajes) solo se admiten desde el propio portal (CSP `form-action 'self'` y cabecera `Sec-Fetch-Site`). El HTML escrito a mano en los documentos se muestra como texto.
 - No usa JavaScript ni cookies propias (Cloudflare puede poner su cookie técnica de seguridad `__cf_bm`).

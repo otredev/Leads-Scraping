@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { BookOpen, Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X, ChartNoAxesCombined, FileText } from "lucide-react";
+import { BookOpen, Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X, ChartNoAxesCombined, FileText, MessageSquare } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
@@ -19,6 +19,7 @@ const NAV = [
   { href: "/clientes", label: "Clientes", Icon: Briefcase },
   { href: "/finanzas", label: "Finanzas", Icon: ChartNoAxesCombined },
   { href: "/documentos", label: "Documentos", Icon: FileText },
+  { href: "/mensajes", label: "Mensajes", Icon: MessageSquare },
   { href: "/tareas", label: "Tareas", Icon: CalendarCheck },
   { href: "/calendario", label: "Calendario", Icon: CalendarDays },
   { href: "/papelera", label: "Papelera", Icon: Trash2 },
@@ -56,10 +57,34 @@ function CurrentNavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return <NavList pathname={usePathname()} onNavigate={onNavigate} />;
 }
 
+/** Mensajes sin leer, consultados cada minuto (y al cambiar de página). */
+function useUnreadMessages(pathname: string) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetch("/api/messages/unread")
+        .then((r) => (r.ok ? r.json() : { unread: 0 }))
+        .then((d: { unread: number }) => alive && setN(d.unread))
+        .catch(() => undefined);
+    void load();
+    const t = setInterval(load, 60_000);
+    // La página Mensajes avisa al leer o responder, para actualizar el número al momento.
+    window.addEventListener("messages:changed", load);
+    return () => {
+      alive = false;
+      clearInterval(t);
+      window.removeEventListener("messages:changed", load);
+    };
+  }, [pathname]);
+  return n;
+}
+
 function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const { searches, savedKeys, tasks } = useData();
   const pending = tasks.filter((t) => ["overdue", "today"].includes(taskBucket(t))).length;
   const active = searches.filter((s) => s.status === "running" || s.status === "queued").length;
+  const unreadMessages = useUnreadMessages(pathname);
   return (
     <ul className="flex flex-col gap-1">
       {NAV.map(({ href, label, Icon }) => {
@@ -79,6 +104,11 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
               {href === "/tareas" && pending > 0 && (
                 <span className="badge bg-primary text-primary-fg" title={`${pending} vencidas o para hoy`}>
                   {pending}
+                </span>
+              )}
+              {href === "/mensajes" && unreadMessages > 0 && (
+                <span className="badge bg-primary text-primary-fg" title={`${unreadMessages} sin leer`}>
+                  {unreadMessages}
                 </span>
               )}
               {href === "/leads" && savedKeys.size > 0 && (

@@ -10,6 +10,7 @@ import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 import type { Expense } from "@/core/finance";
 import type { DocTemplate, Document } from "@/core/documents";
+import type { Message } from "@/core/messages";
 
 /**
  * Almacenamiento en ficheros JSON dentro de DATA_DIR (por defecto ./data).
@@ -44,6 +45,10 @@ class JsonFileStore implements LeadStore {
 
   private get projectsFile() {
     return path.join(this.dir, "projects.json");
+  }
+
+  private get messagesFile() {
+    return path.join(this.dir, "messages.json");
   }
 
   private get documentsFile() {
@@ -477,6 +482,40 @@ class JsonFileStore implements LeadStore {
     return this.remove<DocTemplate>(this.docTemplatesFile, id);
   }
 
+  // ── Mensajes ──
+
+  async listMessages(opts: { clientId?: string } = {}) {
+    return (await this.read<Message[]>(this.messagesFile, []))
+      .filter((m) => !opts.clientId || m.clientId === opts.clientId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  putMessages(messages: Message[]) {
+    if (!messages.length) return Promise.resolve();
+    return this.lock(async () => {
+      const all = await this.read<Message[]>(this.messagesFile, []);
+      const index = new Map(all.map((m, i) => [m.id, i]));
+      for (const m of messages) {
+        const i = index.get(m.id);
+        if (i === undefined) {
+          index.set(m.id, all.length);
+          all.push(m);
+        } else all[i] = m;
+      }
+      await this.write(this.messagesFile, all);
+    });
+  }
+
+  deleteMessages(opts: { clientId?: string; id?: string }) {
+    return this.lock(async () => {
+      const all = await this.read<Message[]>(this.messagesFile, []);
+      await this.write(
+        this.messagesFile,
+        all.filter((m) => (opts.id ? m.id !== opts.id : m.clientId !== opts.clientId)),
+      );
+    });
+  }
+
 
   // ── Datos internos de los módulos ──
 
@@ -518,6 +557,7 @@ class JsonFileStore implements LeadStore {
       expenses: await this.listExpenses(),
       documents: await this.listDocuments(),
       docTemplates: await this.listDocTemplates(),
+      messages: await this.listMessages(),
     };
   }
 
@@ -554,6 +594,8 @@ class JsonFileStore implements LeadStore {
     for (const d of backup.documents ?? []) if (!(await this.getDocument(d.id))) await this.putDocument(d);
     const templates = new Set((await this.listDocTemplates()).map((t) => t.id));
     for (const t of backup.docTemplates ?? []) if (!templates.has(t.id)) await this.putDocTemplate(t);
+    const messageIds = new Set((await this.listMessages()).map((m) => m.id));
+    await this.putMessages((backup.messages ?? []).filter((m) => !messageIds.has(m.id)));
     return summary;
   }
 }

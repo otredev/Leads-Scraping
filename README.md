@@ -31,6 +31,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
    - [Finanzas](#finanzas)
    - [Propuestas, contratos y facturas](#propuestas-contratos-y-facturas)
    - [Portal del cliente](#portal-del-cliente)
+   - [Mensajes con clientes](#mensajes-con-clientes)
    - [Notificaciones push](#notificaciones-push)
    - [Ajustes, copias e instalación](#ajustes-copias-e-instalación)
 4. [Claude (MCP)](#4-claude-mcp)
@@ -57,7 +58,8 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
 | **Clientes** | Proyectos con cronograma, tareas, presupuesto, pagos y horas |
 | **Documentos** | Propuestas, contratos y facturas desde plantillas con variables; facturas numeradas con huella encadenada y QR; aceptación en el portal |
 | **Finanzas** | Gastos, beneficio neto por cliente, retorno por canal de captación y rentabilidad por sector o ciudad |
-| **Portal** | Enlace privado donde el cliente ve el avance, con páginas legales generadas |
+| **Portal** | Enlace privado donde el cliente acepta tus condiciones y ve el avance, sus documentos y sus mensajes |
+| **Mensajes** | Conversación con cada cliente desde su portal, con notas internas, avisos push y "Visto" |
 | **Claude** | Manejar el CRM hablando, vía MCP, y crear la página del negocio en Otrelink |
 | **Ayuda** | Documentación integrada con buscador, sin conexión |
 
@@ -234,7 +236,17 @@ Una web aparte en Cloudflare (gratis) donde cada cliente, con su **enlace privad
 - **Se actualiza solo** unos segundos después de cada cambio (mientras la app esté encendida).
 - Puedes ver cuándo lo abrió, **renovar** el enlace o **desactivarlo**.
 - **Páginas legales** (aviso legal, privacidad y cookies) generadas con tus datos y enlazadas en el pie. Son plantillas orientativas para España: revísalas con un profesional.
+- **Aceptación de condiciones**: antes de ver nada, el cliente acepta el aviso legal y la privacidad (nombre + casilla; se guardan fecha, IP y versión de los textos). Si cambias tus datos legales, se le vuelve a pedir.
+- Pulsar el nombre de tu negocio lleva siempre a la página principal del cliente.
 - Tu CRM, notas y horas **nunca salen de tu equipo**: solo se envía lo marcado como visible.
+
+### Mensajes con clientes
+
+- El cliente escribe desde su portal (opcionalmente sobre un proyecto) y ve tus respuestas en la misma conversación.
+- En la app, **Mensajes** muestra las conversaciones con los sin leer (también en el menú lateral), y respondes al momento. Ves **Enviado / Visto** y si aceptó las condiciones.
+- **Notas internas** en la conversación que solo ves tú.
+- La app recoge los mensajes cada minuto (cada 20 s con Mensajes abierto) y avisa con notificación push. Hay una tarjeta Mensajes en la ficha de cada cliente.
+- Los mensajes viven en el portal (D1) con copia en la app (incluida en la copia de seguridad). Sin adjuntos; máximo 30 mensajes por hora por cliente.
 
 ### Notificaciones push
 
@@ -287,6 +299,7 @@ En **Ajustes → Claude (MCP)** tienes los comandos listos para copiar.
 | `create_project` / `update_project` | Estado, hitos, pagos y horas |
 | `get_finances` / `list_expenses` / `add_expense` | Rentabilidad por cliente, canal y segmento; registrar gastos |
 | `list_documents` / `get_document` / `create_document` | Propuestas, contratos y facturas; crear borradores (nunca envía ni emite) |
+| `list_messages` / `add_note` | Leer conversaciones con clientes y añadir notas internas (no responde por ti) |
 | `draft_message` / `log_contact` | Rellenar una plantilla y registrar el contacto |
 | `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink |
 
@@ -316,6 +329,7 @@ src/
 │   ├── portal.ts       Lo que se publica en el portal
 │   ├── finance.ts      Gastos y cálculo de rentabilidad
 │   ├── documents.ts    Documentos, plantillas, variables, totales, huella y QR
+│   ├── messages.ts     Mensajes, notas internas y aceptación de condiciones
 │   └── …               score, templates, calendar, socials, phone, otrelink, stats
 ├── modules/            Implementaciones intercambiables
 │   ├── index.ts        ⭐ Registro: el único sitio donde se conectan
@@ -325,7 +339,7 @@ src/
 │   ├── storage/        mongodb, json-file
 │   ├── enrichers/      website-contacts
 │   └── notifiers/      web-push
-├── server/             Lógica de servidor: runner, crm, tasks, clients, finance, documents,
+├── server/             Lógica de servidor: runner, crm, tasks, clients, finance, documents, messages,
 │   │                   portal, enrich, reminders, notifications, docs
 │   └── mcp/            Servidor MCP para Claude
 ├── app/                Páginas y API REST (app/api/*)

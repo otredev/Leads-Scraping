@@ -52,6 +52,11 @@ export async function checkDueTasks(now = new Date()) {
 }
 
 /** Arranca el temporizador una sola vez por proceso. */
+async function syncMessages() {
+  const { syncInbox } = await import("./messages");
+  await syncInbox({ force: true }).catch((err: Error) => console.error(`[portal] mensajes: ${err.message}`));
+}
+
 async function syncFromPortal() {
   const { syncAcceptances } = await import("./documents");
   await syncAcceptances({ force: true }).catch((err: Error) => console.error(`[portal] aceptaciones: ${err.message}`));
@@ -62,6 +67,7 @@ export function startReminders() {
   let ticks = 0;
   g.__reminders = setInterval(() => {
     void checkDueTasks();
+    void syncMessages();
     // Cada 5 minutos, recoge las propuestas y contratos aceptados en el portal.
     if (++ticks % 5 === 0) void syncFromPortal();
   }, INTERVAL_MS);

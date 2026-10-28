@@ -5,6 +5,7 @@ import type { CrmSettings, LeadUpdate, Task } from "./crm";
 import type { Client, Project } from "./clients";
 import type { Expense } from "./finance";
 import type { DocTemplate, Document } from "./documents";
+import type { Message } from "./messages";
 
 /** Copia de seguridad completa, independiente del almacenamiento. */
 export interface Backup {
@@ -28,6 +29,8 @@ export interface Backup {
   /** Propuestas, contratos y facturas, y sus plantillas. */
   documents?: Document[];
   docTemplates?: DocTemplate[];
+  /** Mensajes con clientes y notas internas. */
+  messages?: Message[];
 }
 
 export interface ImportSummary {
@@ -116,6 +119,12 @@ export interface LeadStore {
   listDocTemplates(): Promise<DocTemplate[]>;
   putDocTemplate(t: DocTemplate): Promise<void>;
   deleteDocTemplate(id: string): Promise<void>;
+
+  // ── Mensajes ──
+  listMessages(opts?: { clientId?: string }): Promise<Message[]>;
+  /** Crea o reemplaza (por id). */
+  putMessages(messages: Message[]): Promise<void>;
+  deleteMessages(opts: { clientId?: string; id?: string }): Promise<void>;
 
   // ── Ajustes del CRM ──
   getSettings(): Promise<CrmSettings>;

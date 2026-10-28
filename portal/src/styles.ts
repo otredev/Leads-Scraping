@@ -140,6 +140,23 @@ summary { cursor: pointer; font-size: 14px; color: var(--fg-2); }
   body { background: #fff; }
   .paper { border: 0; box-shadow: none; padding: 0; }
 }
+a.brand { text-decoration: none; }
+a.brand:hover { opacity: .8; }
+.thread { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 85%; display: flex; flex-direction: column; gap: 2px; }
+.msg.mine { align-self: flex-end; align-items: flex-end; }
+.msg.theirs { align-self: flex-start; align-items: flex-start; }
+.msg-meta { font-size: 11.5px; color: var(--muted); }
+.msg-body { white-space: pre-wrap; overflow-wrap: anywhere; padding: 9px 12px; border-radius: 14px; font-size: 14.5px; line-height: 1.5; }
+.msg.mine .msg-body { background: var(--primary); color: var(--primary-fg); border-bottom-right-radius: 4px; }
+.msg.theirs .msg-body { background: var(--surface-2); color: var(--fg); border-bottom-left-radius: 4px; }
+.thread.compact .msg-body { font-size: 13.5px; padding: 7px 10px; }
+.accept textarea, .accept select { padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--fg); font: inherit; }
+.accept textarea { resize: vertical; min-height: 110px; }
+.accept select { min-height: 42px; }
+.consent h1 { font-size: 22px; }
+.consent-links { margin: 4px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; color: var(--fg-2); font-size: 14px; }
+.consent-links a { color: var(--fg); font-weight: 500; }
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 6px; }
 @media (max-width: 480px) {
   h1 { font-size: 22px; }

@@ -1,6 +1,6 @@
 import type { Child } from "hono/jsx";
 import type { PortalSite } from "../../src/core/portal";
-import { fmt, Layout } from "./pages";
+import { Brand, fmt, Layout, LegalLinks } from "./pages";
 
 /**
  * Páginas legales del portal: aviso legal (LSSI art. 10), privacidad (RGPD arts. 13 y 14)
@@ -142,6 +142,11 @@ function Privacidad({ site }: { site?: PortalSite }) {
           <li>Tus datos de cliente: nombre o razón social y persona de contacto.</li>
           <li>La información de tus proyectos: estado, hitos, tareas y, si se muestran, presupuesto y pagos.</li>
           <li>Del uso del portal: la fecha de tu última visita y el número de visitas.</li>
+          <li>Los mensajes que nos envías desde el portal y nuestras respuestas.</li>
+          <li>
+            El registro de tu aceptación de estas condiciones y de las propuestas o contratos que aceptes: el nombre que escribes, la fecha y hora, la dirección IP y el
+            navegador.
+          </li>
           <li>Datos técnicos de la conexión (dirección IP, navegador), que trata el proveedor de alojamiento para servir la web y protegerla.</li>
         </ul>
         <p>Los datos los facilitas tú al contratar o se generan durante el proyecto.</p>
@@ -151,6 +156,8 @@ function Privacidad({ site }: { site?: PortalSite }) {
           <li>
             Informarte del avance del proyecto contratado: ejecución del contrato (art. 6.1.b del RGPD).
           </li>
+          <li>Atender tus mensajes y consultas sobre el proyecto: ejecución del contrato (art. 6.1.b del RGPD).</li>
+          <li>Poder demostrar que aceptaste estas condiciones o un documento: interés legítimo del responsable (art. 6.1.f del RGPD).</li>
           <li>Mantener el portal seguro y evitar abusos: interés legítimo del responsable (art. 6.1.f del RGPD).</li>
         </ul>
         <p>No se toman decisiones automatizadas ni se elaboran perfiles con estos datos.</p>
@@ -205,21 +212,34 @@ function Cookies({ site }: { site?: PortalSite }) {
   );
 }
 
-export function LegalPage({ page, site }: { page: LegalSlug; site?: PortalSite }) {
+/**
+ * Versión de los textos legales: cambia si cambian tus datos legales o los de contacto,
+ * y entonces se vuelve a pedir la aceptación a los clientes.
+ */
+export async function policyVersion(site?: PortalSite) {
+  const text = JSON.stringify({ legal: site?.legal ?? {}, name: site?.brand.name ?? "", email: site?.brand.email ?? "" });
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)]
+    .slice(0, 6)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export function LegalPage({ page, site, token }: { page: LegalSlug; site?: PortalSite; token?: string }) {
   const title = LEGAL_PAGES[page];
   const brand = site?.brand.name;
   const updated = site ? fmt(site.timeZone, { day: "numeric", month: "long", year: "numeric" }).format(new Date(site.updatedAt)) : undefined;
   const incomplete = !site?.legal.holder || !site.legal.taxId || !site.legal.address || !site.brand.email;
   return (
     <Layout title={title} brand={brand}>
-      {brand && (
+      {(brand || token) && (
         <header class="top">
-          <span class="brand">
-            <span class="logo" aria-hidden="true">
-              {brand.slice(0, 1).toUpperCase()}
-            </span>
-            {brand}
-          </span>
+          {brand ? <Brand name={brand} token={token} /> : <span />}
+          {token && (
+            <a class="back" href={`/p/${token}`}>
+              ← Volver al portal
+            </a>
+          )}
         </header>
       )}
       <main>
@@ -231,13 +251,7 @@ export function LegalPage({ page, site }: { page: LegalSlug; site?: PortalSite }
         </article>
       </main>
       <footer class="foot">
-        <nav class="legal-links" aria-label="Información legal">
-          {(Object.keys(LEGAL_PAGES) as LegalSlug[]).map((slug) => (
-            <a href={`/legal/${slug}`} aria-current={slug === page ? "page" : undefined}>
-              {slug === "aviso-legal" ? "Aviso legal" : slug === "privacidad" ? "Privacidad" : "Cookies"}
-            </a>
-          ))}
-        </nav>
+        <LegalLinks token={token} current={page} />
       </footer>
     </Layout>
   );
