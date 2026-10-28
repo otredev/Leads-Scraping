@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { BookOpen, Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X, ChartNoAxesCombined } from "lucide-react";
+import { BookOpen, Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X, ChartNoAxesCombined, FileText } from "lucide-react";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/leads", label: "Leads", Icon: Users },
   { href: "/clientes", label: "Clientes", Icon: Briefcase },
   { href: "/finanzas", label: "Finanzas", Icon: ChartNoAxesCombined },
+  { href: "/documentos", label: "Documentos", Icon: FileText },
   { href: "/tareas", label: "Tareas", Icon: CalendarCheck },
   { href: "/calendario", label: "Calendario", Icon: CalendarDays },
   { href: "/papelera", label: "Papelera", Icon: Trash2 },

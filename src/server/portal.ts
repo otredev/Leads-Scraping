@@ -1,8 +1,9 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { projectProgress, projectTotals, statusLabel, type Client } from "@/core/clients";
-import type { PortalBrandSettings } from "@/core/crm";
-import { PORTAL_SITE_VERSION, PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalSite, type PortalSnapshot, type PortalStatus } from "@/core/portal";
+import type { CrmSettings, PortalBrandSettings } from "@/core/crm";
+import { docTotals, docTypeLabel, statusLabel as docStatusLabel } from "@/core/documents";
+import { PORTAL_SITE_VERSION, PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalDocument, type PortalSite, type PortalSnapshot, type PortalStatus } from "@/core/portal";
 import { getStore } from "./registry";
 
 /**
@@ -21,7 +22,7 @@ export function portalConfig() {
 
 const bad = (m: string, status = 400) => Object.assign(new Error(m), { status });
 
-async function portalFetch(path: string, init: RequestInit = {}) {
+export async function portalFetch(path: string, init: RequestInit = {}) {
   const { url, secret, configured } = portalConfig();
   if (!configured) throw bad("Configura PORTAL_URL y PORTAL_SECRET en .env.local para usar el portal del cliente.");
   let res: Response;
@@ -97,6 +98,42 @@ export async function publishSite() {
   if (!res.ok) throw await portalError(res);
 }
 
+/** Documentos que ve el cliente: los marcados como visibles que ya no son borradores. */
+async function portalDocuments(clientId: string, settings: CrmSettings): Promise<PortalDocument[]> {
+  const [{ renderMarkdown }, docs, QRCode] = await Promise.all([import("@/lib/markdown"), getStore().listDocuments({ clientId }), import("qrcode")]);
+  const ds = settings.documents ?? {};
+  const out: PortalDocument[] = [];
+  for (const d of docs.filter((x) => x.visibleToClient && x.status !== "draft").sort((a, b) => b.date.localeCompare(a.date))) {
+    const t = docTotals(d);
+    const isInvoice = d.type === "invoice";
+    out.push({
+      id: d.id,
+      type: d.type,
+      typeLabel: isInvoice && d.kind === "R4" ? "Factura rectificativa" : docTypeLabel(d.type),
+      title: d.title,
+      ...(d.number ? { number: d.number } : {}),
+      status: d.status,
+      statusLabel: docStatusLabel(d.type, d.status),
+      date: d.date,
+      ...(d.dueDate ? { dueDate: d.dueDate } : {}),
+      currency: d.currency,
+      html: d.body.trim() ? renderMarkdown(d.body) : "",
+      lines: d.lines,
+      totals: { base: t.base, vat: t.vat, irpf: t.irpf, total: t.total },
+      ...(d.irpf ? { irpf: d.irpf } : {}),
+      ...(d.notes ? { notes: d.notes } : {}),
+      ...(d.issuer ? { issuer: d.issuer } : {}),
+      ...(d.customer ? { customer: d.customer } : {}),
+      ...(d.rectifies ? { rectifies: { number: d.rectifies.number, date: d.rectifies.date } } : {}),
+      ...(d.record ? { qrSvg: await QRCode.toString(d.record.qrUrl, { type: "svg", errorCorrectionLevel: "M", margin: 0 }) } : {}),
+      ...(isInvoice && (ds.iban || ds.invoiceFooter) ? { footer: { ...(ds.iban && d.kind !== "R4" ? { iban: ds.iban } : {}), ...(ds.invoiceFooter ? { text: ds.invoiceFooter } : {}) } } : {}),
+      ...(d.status === "sent" && d.type !== "invoice" && d.sentAt ? { acceptable: { sentAt: d.sentAt, action: d.type === "contract" ? "Firmar contrato" : "Aceptar propuesta" } } : {}),
+      ...(d.acceptance ? { acceptance: { name: d.acceptance.name, at: d.acceptance.at } } : {}),
+    });
+  }
+  return out;
+}
+
 /** Construye lo que verá el cliente: solo proyectos no cancelados y lo marcado como visible. */
 export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
   const store = getStore();
@@ -109,9 +146,11 @@ export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
     ...(x.doneAt ? { doneAt: x.doneAt } : {}),
   });
 
+  const documents = await portalDocuments(client.id, settings);
   return {
     version: PORTAL_SNAPSHOT_VERSION,
     client: { id: client.id, name: client.name, ...(client.contactName ? { contactName: client.contactName } : {}) },
+    ...(documents.length ? { documents } : {}),
     brand,
     timeZone: timeZone(),
     publishedAt: new Date().toISOString(),
@@ -195,6 +234,9 @@ export async function disablePortal(clientId: string) {
   const client = await getStore().getClient(clientId);
   if (!client) throw bad("Cliente no encontrado", 404);
   if (portalConfig().configured) {
+    // Antes de borrarlo, recoge las aceptaciones pendientes (se borran con el portal).
+    const { syncAcceptances } = await import("./documents");
+    await syncAcceptances({ force: true }).catch(() => undefined);
     const res = await portalFetch(`/portals/${encodeURIComponent(clientId)}`, { method: "DELETE" });
     if (!res.ok && res.status !== 404) throw await portalError(res);
   }

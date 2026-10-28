@@ -12,6 +12,7 @@ Cada cliente puede tener un **enlace privado** a una web donde ve:
 - El **cronograma** (hitos hechos, próximos y retrasados).
 - Las **tareas** pendientes y completadas.
 - El **presupuesto y los pagos**, solo si lo activas en el proyecto.
+- Sus **propuestas, contratos y facturas** enviados, para leerlos, guardarlos en PDF y **aceptar o firmar** (ver [Propuestas, contratos y facturas](/ayuda/documentos)).
 - Tus datos de contacto, con botón de WhatsApp y email.
 - Las páginas legales: aviso legal, privacidad y cookies.
 
@@ -35,7 +36,9 @@ En la ficha del cliente, tarjeta **Portal del cliente**:
 - **Renovar enlace**: crea uno nuevo y el anterior deja de funcionar.
 - **Desactivar portal**: el enlace deja de funcionar.
 
-Se **actualiza solo**: cada cambio en sus proyectos, hitos o tareas se publica a los 2 segundos, mientras la app esté encendida. Si algo no se actualiza, pulsa **Publicar ahora**.
+Si ya tenías el portal desplegado, para los documentos aplica la migración nueva y vuelve a publicarlo: `cd portal && npm run db:migrate:remote && npm run deploy`.
+
+Se **actualiza solo**: cada cambio en sus proyectos, hitos, tareas o documentos se publica a los 2 segundos, mientras la app esté encendida. Si algo no se actualiza, pulsa **Publicar ahora**.
 
 ## Privacidad
 

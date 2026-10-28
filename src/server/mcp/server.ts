@@ -19,6 +19,8 @@ import { clientsOverview, createClient, createProject, updateProject } from "../
 import { PROJECT_STATUSES, projectProgress, projectTotals, type ProjectStatus } from "@/core/clients";
 import { EXPENSE_CATEGORIES, EXPENSE_TYPES, RECURRENCES } from "@/core/finance";
 import { createExpense, getFinanceReport, listExpenses, parsePeriod } from "../finance";
+import { createDocument, getDocument, listDocuments, listTemplates, updateDocument } from "../documents";
+import { DOC_TYPES } from "@/core/documents";
 
 /**
  * Servidor MCP: expone el CRM a Claude (u otro cliente MCP).
@@ -756,6 +758,63 @@ export function createMcpServer() {
       },
     },
     run(async (a: Record<string, unknown>) => createExpense(a)),
+  );
+
+  // ── Documentos ──
+
+  server.registerTool(
+    "list_documents",
+    {
+      title: "Documentos",
+      description: "Propuestas, contratos y facturas (sin el texto), con estado, número, total y cliente. Incluye las plantillas disponibles para crear nuevos.",
+      inputSchema: { clientId: z.string().optional(), type: z.enum(DOC_TYPES.map((t) => t.id) as [string, ...string[]]).optional() },
+      annotations: { readOnlyHint: true },
+    },
+    run(async ({ clientId, type }: { clientId?: string; type?: string }) => {
+      const docs = await listDocuments({ clientId, type: type as never });
+      const templates = (await listTemplates()).map(({ id, type: t, name }) => ({ id, type: t, name }));
+      return {
+        documents: docs.map((d) => ({ id: d.id, type: d.type, number: d.number, title: d.renderedTitle, status: d.status, client: d.clientName, project: d.projectName, date: d.date, dueDate: d.dueDate, total: d.totals.total, currency: d.currency, acceptance: d.acceptance })),
+        templates,
+      };
+    }),
+  );
+
+  server.registerTool(
+    "get_document",
+    {
+      title: "Ver documento",
+      description: "Un documento con su texto (variables ya rellenadas), líneas, totales, partes y, en facturas, su registro.",
+      inputSchema: { id: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    // Sin el SVG del QR (es largo y no le sirve a Claude: la URL está en record.qrUrl).
+    run(async ({ id }: { id: string }) => ({ ...(await getDocument(id)), qrSvg: undefined })),
+  );
+
+  server.registerTool(
+    "create_document",
+    {
+      title: "Crear documento",
+      description:
+        "Crea un BORRADOR de propuesta, contrato o factura para un cliente, desde una plantilla (las variables {cliente.nombre}, {proyecto.hitos}… se rellenan solas) o convirtiendo otro (fromId). Puedes pasar title, body (Markdown) y lines para redactarlo tú. Nunca lo envía ni emite: el usuario lo revisa en la app.",
+      inputSchema: {
+        type: z.enum(DOC_TYPES.map((t) => t.id) as [string, ...string[]]),
+        clientId: z.string().optional(),
+        projectId: z.string().optional(),
+        templateId: z.string().optional(),
+        fromId: z.string().optional(),
+        title: z.string().max(200).optional(),
+        body: z.string().max(50_000).optional(),
+        lines: z.array(z.object({ description: z.string(), quantity: z.number(), unitPrice: z.number(), vat: z.number() })).optional(),
+      },
+    },
+    run(async ({ title, body, lines, ...rest }: Record<string, unknown>) => {
+      const doc = await createDocument({ ...rest, title });
+      const patch = { ...(body !== undefined ? { body } : {}), ...(lines !== undefined ? { lines } : {}) };
+      const view = Object.keys(patch).length ? await updateDocument(doc.id, patch) : await getDocument(doc.id);
+      return { id: view.id, number: view.number, title: view.renderedTitle, status: view.status, missing: view.missing, total: view.totals.total, open: `/documentos/${view.id}` };
+    }),
   );
 
   return server;

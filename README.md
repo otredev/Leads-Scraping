@@ -29,6 +29,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
    - [Completar redes y emails](#completar-redes-y-emails)
    - [Clientes y proyectos](#clientes-y-proyectos)
    - [Finanzas](#finanzas)
+   - [Propuestas, contratos y facturas](#propuestas-contratos-y-facturas)
    - [Portal del cliente](#portal-del-cliente)
    - [Notificaciones push](#notificaciones-push)
    - [Ajustes, copias e instalación](#ajustes-copias-e-instalación)
@@ -54,6 +55,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
 | **Tareas** | Seguimientos con fecha opcional, calendario mensual/semanal y avisos push |
 | **Enriquecer** | Completar redes sociales, emails y teléfono desde la web de cada negocio |
 | **Clientes** | Proyectos con cronograma, tareas, presupuesto, pagos y horas |
+| **Documentos** | Propuestas, contratos y facturas desde plantillas con variables; facturas numeradas con huella encadenada y QR; aceptación en el portal |
 | **Finanzas** | Gastos, beneficio neto por cliente, retorno por canal de captación y rentabilidad por sector o ciudad |
 | **Portal** | Enlace privado donde el cliente ve el avance, con páginas legales generadas |
 | **Claude** | Manejar el CRM hablando, vía MCP, y crear la página del negocio en Otrelink |
@@ -206,6 +208,20 @@ Cuánto ganas de verdad, qué clientes te compensan y dónde invertir para conse
 
 Importes sin IVA, en una sola moneda (la de Finanzas).
 
+### Propuestas, contratos y facturas
+
+La página **Documentos** (y la tarjeta Documentos de cada cliente):
+
+- **Plantillas** con texto en Markdown y variables que se rellenan solas: `{cliente.nombre}`, `{cliente.nif}`, `{proyecto.hitos}`, `{proyecto.presupuesto}`, `{yo.iban}`… Hay tres incluidas (propuesta, contrato de servicios y factura) y puedes crear las tuyas.
+- **Borradores** que se guardan solos, con vista previa y aviso de los datos que faltan. Al enviar (o emitir) se fijan el texto y los datos de las partes.
+- **Propuestas y contratos**: el cliente los **acepta o firma en su portal** (nombre + casilla, con fecha, hora e IP); la app lo recoge y te avisa. Una propuesta aceptada pasa a contrato o factura con un clic.
+- **Facturas**: IVA por línea, retención de IRPF, numeración correlativa por serie y año (`F2026-0001`, rectificativas `R2026-0001`), inalterables una vez emitidas, **rectificativas**, cobro que se registra en el proyecto (Finanzas) y **QR tributario**.
+- **Registro encadenado** tipo NO VERI\*FACTU: cada factura guarda la huella SHA-256 en el formato de la AEAT (comprobada con su ejemplo oficial) y la de la anterior, con comprobación de integridad y registro de eventos.
+- **PDF** con el diálogo de impresión del navegador (A4, solo el documento).
+- Tus datos salen de Ajustes → Portal del cliente → Datos legales; IVA, IRPF, IBAN y pie de factura, de Documentos → Ajustes. El NIF del cliente, de su ficha.
+
+> **VeriFactu:** las obligaciones para programas de facturación (RD 1007/2023) aplican desde el 1/1/2027 a sociedades y desde el 1/7/2027 al resto; Hacienda anunció en octubre de 2026 un aplazamiento a octubre de 2028, pendiente de BOE. A la app le falta la firma electrónica de los registros y la declaración responsable del fabricante: revísalo con tu gestoría antes de que te sea obligatorio.
+
 ### Portal del cliente
 
 Una web aparte en Cloudflare (gratis) donde cada cliente, con su **enlace privado**, ve el avance de sus proyectos: porcentaje, próxima entrega, cronograma, tareas y, si lo activas, presupuesto y pagos.
@@ -270,6 +286,7 @@ En **Ajustes → Claude (MCP)** tienes los comandos listos para copiar.
 | `list_clients` / `get_client` / `create_client` | Clientes y resumen de sus proyectos |
 | `create_project` / `update_project` | Estado, hitos, pagos y horas |
 | `get_finances` / `list_expenses` / `add_expense` | Rentabilidad por cliente, canal y segmento; registrar gastos |
+| `list_documents` / `get_document` / `create_document` | Propuestas, contratos y facturas; crear borradores (nunca envía ni emite) |
 | `draft_message` / `log_contact` | Rellenar una plantilla y registrar el contacto |
 | `otrelink_brief` / `set_lead_page` | Preparar la página del negocio en Otrelink |
 
@@ -298,6 +315,7 @@ src/
 │   ├── clients.ts      Clientes, proyectos, hitos, pagos y horas
 │   ├── portal.ts       Lo que se publica en el portal
 │   ├── finance.ts      Gastos y cálculo de rentabilidad
+│   ├── documents.ts    Documentos, plantillas, variables, totales, huella y QR
 │   └── …               score, templates, calendar, socials, phone, otrelink, stats
 ├── modules/            Implementaciones intercambiables
 │   ├── index.ts        ⭐ Registro: el único sitio donde se conectan
@@ -307,12 +325,12 @@ src/
 │   ├── storage/        mongodb, json-file
 │   ├── enrichers/      website-contacts
 │   └── notifiers/      web-push
-├── server/             Lógica de servidor: runner, crm, tasks, clients, finance,
+├── server/             Lógica de servidor: runner, crm, tasks, clients, finance, documents,
 │   │                   portal, enrich, reminders, notifications, docs
 │   └── mcp/            Servidor MCP para Claude
 ├── app/                Páginas y API REST (app/api/*)
 ├── components/         UI por sección: shell, pages, leads, clients, tasks,
-│                       finance, calendar, settings, help, notifications, charts, ui
+│                       finance, documents, calendar, settings, help, notifications, charts, ui
 ├── content/docs/       Guías de la página Ayuda (Markdown)
 ├── lib/                Tema y PWA
 └── instrumentation.ts  Arranca los recordatorios

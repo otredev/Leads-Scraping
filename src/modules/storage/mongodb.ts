@@ -7,6 +7,7 @@ import { defineStorage, type Backup, type ImportSummary, type LeadStore } from "
 import { dedupeLeads, leadDedupeKey, normalizeLead, normalizeSaved, pickLeadData, type Lead, type SavedLead } from "@/core/lead";
 import type { Search } from "@/core/search";
 import type { Expense } from "@/core/finance";
+import type { DocTemplate, Document } from "@/core/documents";
 
 /**
  * Almacenamiento en MongoDB (Atlas o local).
@@ -106,6 +107,8 @@ const tasks = async () => (await db()).collection<Doc<Task>>("tasks");
 const clientsCol = async () => (await db()).collection<Doc<Client>>("clients");
 const projectsCol = async () => (await db()).collection<Doc<Project>>("projects");
 const expensesCol = async () => (await db()).collection<Doc<Expense>>("expenses");
+const documentsCol = async () => (await db()).collection<Doc<Document>>("documents");
+const docTemplatesCol = async () => (await db()).collection<Doc<DocTemplate>>("doc_templates");
 let metaQueue: Promise<unknown> = Promise.resolve();
 const metaCol = async () => (await db()).collection<{ _id: string; value: unknown }>("meta");
 const settingsCol = async () => (await db()).collection<{ _id: string } & Partial<CrmSettings>>("settings");
@@ -456,6 +459,40 @@ class MongoStore implements LeadStore {
     await (await expensesCol()).deleteOne({ _id: id });
   }
 
+  // ── Documentos ──
+
+  async listDocuments(opts: { clientId?: string } = {}) {
+    const docs = await (await documentsCol()).find(opts.clientId ? { clientId: opts.clientId } : {}).sort({ date: -1, createdAt: -1 }).toArray();
+    return docs.map((d) => fromDoc<Document>(d)!);
+  }
+
+  async getDocument(id: string) {
+    return fromDoc<Document>(await (await documentsCol()).findOne({ _id: id }));
+  }
+
+  async putDocument(doc: Document) {
+    const { id, ...rest } = doc;
+    await (await documentsCol()).replaceOne({ _id: id }, clean(rest) as Doc<Document>, { upsert: true });
+  }
+
+  async deleteDocument(id: string) {
+    await (await documentsCol()).deleteOne({ _id: id });
+  }
+
+  async listDocTemplates() {
+    const docs = await (await docTemplatesCol()).find().toArray();
+    return docs.map((d) => fromDoc<DocTemplate>(d)!).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+
+  async putDocTemplate(t: DocTemplate) {
+    const { id, ...rest } = t;
+    await (await docTemplatesCol()).replaceOne({ _id: id }, clean(rest) as Doc<DocTemplate>, { upsert: true });
+  }
+
+  async deleteDocTemplate(id: string) {
+    await (await docTemplatesCol()).deleteOne({ _id: id });
+  }
+
   // ── Datos internos de los módulos ──
 
   async getMeta<T>(key: string) {
@@ -499,6 +536,8 @@ class MongoStore implements LeadStore {
       clients: await this.listClients(),
       projects: await this.listProjects(),
       expenses: await this.listExpenses(),
+      documents: await this.listDocuments(),
+      docTemplates: await this.listDocTemplates(),
     };
   }
 
@@ -548,6 +587,8 @@ class MongoStore implements LeadStore {
       [await clientsCol(), backup.clients ?? []],
       [await projectsCol(), backup.projects ?? []],
       [await expensesCol(), backup.expenses ?? []],
+      [await documentsCol(), backup.documents ?? []],
+      [await docTemplatesCol(), backup.docTemplates ?? []],
     ] as const) {
       if (!list.length) continue;
       await (col as Awaited<ReturnType<typeof clientsCol>>).bulkWrite(

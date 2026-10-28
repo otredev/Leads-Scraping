@@ -61,9 +61,16 @@ Y en el `.env.local` de la app: `PORTAL_URL=http://localhost:8787` con el mismo 
 
 `/legal/aviso-legal`, `/legal/privacidad` y `/legal/cookies`, enlazadas en el pie de todas las páginas. Se generan con los datos legales que rellenas en tu app (**Ajustes → Portal del cliente → Datos legales**), que los publica al guardar en la tabla `site` (migración `0002_site.sql`). Mientras falte algún dato, la página lo indica. Son plantillas orientativas para España, no asesoramiento legal.
 
+## Documentos
+
+Las propuestas, contratos y facturas que envías desde la app aparecen en el portal del cliente (`/p/<token>/d/<documento>`). El cliente puede **aceptar una propuesta o firmar un contrato** con su nombre y una casilla; se guarda en la tabla `acceptances` (migración `0003_acceptances.sql`) con la fecha, la IP y el navegador, y tu app la recoge por `GET /api/acceptances`.
+
+Si actualizas un portal ya desplegado: `npm run db:migrate:remote` y `npm run deploy`.
+
 ## Seguridad
 
 - Cada cliente tiene un enlace con un token aleatorio. El portal solo guarda su hash, no el token.
 - Puedes renovar el enlace (el anterior deja de funcionar) o desactivar el portal desde la ficha del cliente.
 - La API de publicación exige `PORTAL_SECRET`. Las páginas no se indexan en buscadores y no envían el enlace a otras webs (sin Referer).
+- Los formularios de aceptación solo se admiten desde el propio portal (CSP `form-action 'self'` y comprobación de `Origin`). El HTML escrito a mano en los documentos se muestra como texto.
 - No usa JavaScript ni cookies propias (Cloudflare puede poner su cookie técnica de seguridad `__cf_bm`).

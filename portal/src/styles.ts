@@ -96,12 +96,57 @@ summary { cursor: pointer; font-size: 14px; color: var(--fg-2); }
 .legal dd { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
 .legal .callout { margin-top: 12px; }
 .legal .pending { color: var(--muted); font-style: italic; }
+.doc-item { padding: 0; }
+.doc-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 0; text-decoration: none; }
+.doc-link > span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.doc-link:hover .title { text-decoration: underline; }
+.callout.ok { background: var(--success-soft); color: var(--success); }
+.callout.err { background: var(--danger-soft); color: var(--danger); }
+.paper { gap: 18px; }
+.paper .label, .party .label { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.paper-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+.meta { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin: 0; font-size: 13px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; text-align: right; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px; line-height: 1.5; }
+.party p { margin: 0; }
+.prose { color: var(--fg-2); font-size: 14.5px; line-height: 1.65; }
+.prose h1, .prose h2, .prose h3 { color: var(--fg); margin: 1.2em 0 .4em; font-size: 16px; display: block; }
+.prose p { margin: .6em 0; }
+.prose ul, .prose ol { padding-left: 1.3em; }
+.prose a { text-decoration: underline; }
+.lines-wrap { overflow-x: auto; }
+.lines { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 460px; }
+.lines th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 2px solid var(--fg); padding: 6px 8px 6px 0; }
+.lines td { border-bottom: 1px solid var(--line); padding: 8px 8px 8px 0; vertical-align: top; }
+.lines .num { text-align: right; }
+.totals { display: grid; grid-template-columns: 1fr auto; gap: 3px 20px; max-width: 300px; margin: 12px 0 0 auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+.totals dt { color: var(--muted); }
+.totals dd { margin: 0; text-align: right; }
+.totals .grand { border-top: 2px solid var(--fg); padding-top: 6px; margin-top: 4px; font-weight: 700; color: var(--fg); font-size: 15px; }
+.paper-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding-top: 14px; font-size: 12.5px; color: var(--fg-2); }
+.qr { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.qr-img { width: 35mm; height: 35mm; background: #fff; padding: 4px; border-radius: 4px; }
+.qr-img svg { width: 100%; height: 100%; display: block; }
+.accept { display: flex; flex-direction: column; gap: 12px; }
+.accept label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.accept input[name="name"] { min-height: 42px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--fg); font: inherit; }
+.accept .check { flex-direction: row; align-items: flex-start; gap: 10px; }
+.accept .check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--primary); }
+.accept .btn { align-self: flex-start; cursor: pointer; font: inherit; font-weight: 600; }
+.center-text { text-align: center; }
+@media print {
+  .top, .foot, #aceptar, .center-text, .card:not(.paper), .callout.ok { display: none !important; }
+  body { background: #fff; }
+  .paper { border: 0; box-shadow: none; padding: 0; }
+}
 :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 6px; }
 @media (max-width: 480px) {
   h1 { font-size: 22px; }
   .card { padding: 16px; }
   .payments li { grid-template-columns: 1fr auto; }
   .payments li span:first-child { grid-column: 1 / -1; }
+  .parties { grid-template-columns: 1fr; }
   .legal dl { grid-template-columns: 1fr; gap: 0; }
   .legal dd { margin-bottom: 8px; }
 }

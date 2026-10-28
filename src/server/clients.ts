@@ -138,6 +138,8 @@ export async function createClient(raw: unknown): Promise<{ client: Client; exis
       notes: str(r.notes, 5000),
       channel: str(r.channel, 60),
       category: str(r.category, 80),
+      taxId: str(r.taxId, 30)?.toUpperCase().replace(/\s|-/g, ""),
+      legalName: str(r.legalName, 200),
       createdAt: t,
       updatedAt: t,
     } as Client,
@@ -170,6 +172,9 @@ export async function updateClient(id: string, raw: unknown) {
   set("notes", optional(r, "notes", 5000));
   set("channel", optional(r, "channel", 60));
   set("category", optional(r, "category", 80));
+  const taxId = optional(r, "taxId", 30);
+  set("taxId", typeof taxId === "string" ? taxId.toUpperCase().replace(/\s|-/g, "") : taxId);
+  set("legalName", optional(r, "legalName", 200));
   if (typeof r.archived === "boolean") set("archived", r.archived || null);
   next = withPhone(next, optional(r, "phone", 40));
   await store.putClient(next);

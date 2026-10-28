@@ -134,6 +134,7 @@ export const DEFAULT_TEMPLATES: MessageTemplate[] = [
 // ── Preferencias de tabla (filtros predeterminados y columnas) ──
 
 import type { FinanceSettings } from "./finance";
+import type { DocumentSettings } from "./documents";
 import type { LeadFilters, LeadSort } from "./query";
 
 export type TableId = "results" | "saved";
@@ -158,6 +159,8 @@ export interface CrmSettings {
   portal?: PortalBrandSettings;
   /** Coste de tu hora y moneda de Finanzas. */
   finance?: FinanceSettings;
+  /** IVA, IRPF, IBAN y pie de factura por defecto. */
+  documents?: DocumentSettings;
 }
 
 export interface PortalBrandSettings {
@@ -202,6 +205,7 @@ export function withDefaults(s: Partial<CrmSettings> | undefined): CrmSettings {
     templates: s?.templates ?? DEFAULT_TEMPLATES,
     ...(s?.portal ? { portal: s.portal } : {}),
     ...(s?.finance ? { finance: s.finance } : {}),
+    ...(s?.documents ? { documents: s.documents } : {}),
   };
 }
 

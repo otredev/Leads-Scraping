@@ -4,6 +4,7 @@ import type { Search } from "./search";
 import type { CrmSettings, LeadUpdate, Task } from "./crm";
 import type { Client, Project } from "./clients";
 import type { Expense } from "./finance";
+import type { DocTemplate, Document } from "./documents";
 
 /** Copia de seguridad completa, independiente del almacenamiento. */
 export interface Backup {
@@ -24,6 +25,9 @@ export interface Backup {
   projects?: Project[];
   /** Gastos (Finanzas). */
   expenses?: Expense[];
+  /** Propuestas, contratos y facturas, y sus plantillas. */
+  documents?: Document[];
+  docTemplates?: DocTemplate[];
 }
 
 export interface ImportSummary {
@@ -102,6 +106,16 @@ export interface LeadStore {
   /** Crea o reemplaza (por id). */
   putExpense(expense: Expense): Promise<void>;
   deleteExpense(id: string): Promise<void>;
+
+  // ── Documentos (propuestas, contratos y facturas) ──
+  listDocuments(opts?: { clientId?: string }): Promise<Document[]>;
+  getDocument(id: string): Promise<Document | undefined>;
+  /** Crea o reemplaza (por id). Las reglas de inmutabilidad están en server/documents.ts. */
+  putDocument(doc: Document): Promise<void>;
+  deleteDocument(id: string): Promise<void>;
+  listDocTemplates(): Promise<DocTemplate[]>;
+  putDocTemplate(t: DocTemplate): Promise<void>;
+  deleteDocTemplate(id: string): Promise<void>;
 
   // ── Ajustes del CRM ──
   getSettings(): Promise<CrmSettings>;

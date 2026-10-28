@@ -3,6 +3,7 @@
  *
  * - /p/<token>            proyectos del cliente
  * - /p/<token>/<proyecto> avance, cronograma, tareas y pagos de un proyecto
+ * - /p/<token>/d/<doc>    propuesta, contrato o factura (y aceptarla)
  * - /legal/<página>      aviso legal, privacidad y cookies (con tus datos de Ajustes)
  * - /api/*                API privada para que tu app publique (Bearer PORTAL_SECRET)
  *
@@ -14,6 +15,7 @@ import { bodyLimit } from "hono/body-limit";
 import type { PortalSite, PortalSnapshot } from "../../src/core/portal";
 import { CSS } from "./styles";
 import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
+import { DocumentPage } from "./documents";
 import { LEGAL_PAGES, LegalPage, type LegalSlug } from "./legal";
 
 type Env = { DB: D1Database; PORTAL_SECRET: string };
@@ -31,7 +33,7 @@ app.use(
       styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:"],
       baseUri: ["'none'"],
-      formAction: ["'none'"],
+      formAction: ["'self'"],
       frameAncestors: ["'none'"],
     },
   }),
@@ -69,16 +71,25 @@ async function sha256(text: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function loadPortal(c: { env: Env; executionCtx: { waitUntil(p: Promise<unknown>): void } }, token: string) {
+async function loadPortal(c: { env: Env; executionCtx: { waitUntil(p: Promise<unknown>): void } }, token: string, { countVisit = true } = {}) {
   if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) return undefined;
   const hash = await sha256(token);
   const row = await c.env.DB.prepare("SELECT client_id, snapshot FROM portals WHERE token_hash = ?").bind(hash).first<{ client_id: string; snapshot: string }>();
   if (!row) return undefined;
   // Registrar la visita sin retrasar la respuesta.
-  c.executionCtx.waitUntil(
-    c.env.DB.prepare("UPDATE portals SET last_viewed_at = ?, views = views + 1 WHERE client_id = ?").bind(new Date().toISOString(), row.client_id).run(),
-  );
+  if (countVisit)
+    c.executionCtx.waitUntil(
+      c.env.DB.prepare("UPDATE portals SET last_viewed_at = ?, views = views + 1 WHERE client_id = ?").bind(new Date().toISOString(), row.client_id).run(),
+    );
   return JSON.parse(row.snapshot) as PortalSnapshot;
+}
+
+/** Aceptación guardada en el portal (aún no reflejada en el snapshot si tu app no lo ha recogido). */
+async function findAcceptance(db: D1Database, clientId: string, docId: string, sentAt: string) {
+  return db
+    .prepare("SELECT name, accepted_at FROM acceptances WHERE client_id = ? AND doc_id = ? AND sent_at = ?")
+    .bind(clientId, docId, sentAt)
+    .first<{ name: string; accepted_at: string }>();
 }
 
 app.use("/p/*", async (c, next) => {
@@ -97,6 +108,40 @@ app.get("/p/:token/:projectId", async (c) => {
   const project = snap?.projects.find((p) => p.id === c.req.param("projectId"));
   if (!snap || !project) return c.html(<NotFoundPage />, 404);
   return c.html(<ProjectPage snap={snap} project={project} token={c.req.param("token")} />);
+});
+
+app.get("/p/:token/d/:docId", async (c) => {
+  const token = c.req.param("token");
+  const snap = await loadPortal(c, token);
+  const doc = snap?.documents?.find((d) => d.id === c.req.param("docId"));
+  if (!snap || !doc) return c.html(<NotFoundPage />, 404);
+  const stored = doc.acceptable ? await findAcceptance(c.env.DB, snap.client.id, doc.id, doc.acceptable.sentAt) : null;
+  const acceptance = doc.acceptance ?? (stored ? { name: stored.name, at: stored.accepted_at } : undefined);
+  return c.html(<DocumentPage snap={snap} doc={doc} token={token} acceptance={acceptance} error={c.req.query("error")} />);
+});
+
+/** El cliente acepta una propuesta o firma un contrato: nombre + casilla. */
+app.post("/p/:token/d/:docId/accept", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
+  const token = c.req.param("token");
+  const docId = c.req.param("docId");
+  const back = (q = "") => c.redirect(`/p/${token}/d/${docId}${q}`, 303);
+  // Solo formularios enviados desde el propio portal.
+  const origin = c.req.header("origin");
+  if (origin && origin !== new URL(c.req.url).origin) return c.text("Origen no permitido", 403);
+  const snap = await loadPortal(c, token, { countVisit: false });
+  const doc = snap?.documents?.find((d) => d.id === docId);
+  if (!snap || !doc) return c.html(<NotFoundPage />, 404);
+  if (!doc.acceptable) return back();
+  const form = await c.req.parseBody();
+  const name = typeof form.name === "string" ? form.name.trim().replace(/\s+/g, " ").slice(0, 120) : "";
+  if (name.length < 3) return back("?error=nombre");
+  if (form.agree !== "1") return back("?error=casilla");
+  await c.env.DB.prepare(
+    "INSERT OR IGNORE INTO acceptances (client_id, doc_id, sent_at, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(snap.client.id, doc.id, doc.acceptable.sentAt, name, new Date().toISOString(), c.req.header("cf-connecting-ip") ?? null, (c.req.header("user-agent") ?? "").slice(0, 300) || null)
+    .run();
+  return back("?ok=1");
 });
 
 // ── API privada (tu app publica aquí) ──
@@ -154,6 +199,24 @@ api.put("/site", bodyLimit({ maxSize: 64 * 1024 }), async (c) => {
   return c.json({ ok: true, updatedAt: now });
 });
 
+/** Aceptaciones hechas en el portal (tu app las recoge y actualiza el documento). */
+api.get("/acceptances", async (c) => {
+  const { results } = await c.env.DB.prepare(
+    "SELECT client_id, doc_id, sent_at, name, accepted_at, ip, user_agent FROM acceptances ORDER BY accepted_at DESC LIMIT 500",
+  ).all<{ client_id: string; doc_id: string; sent_at: string; name: string; accepted_at: string; ip: string | null; user_agent: string | null }>();
+  return c.json(
+    results.map((r) => ({
+      clientId: r.client_id,
+      docId: r.doc_id,
+      sentAt: r.sent_at,
+      name: r.name,
+      acceptedAt: r.accepted_at,
+      ...(r.ip ? { ip: r.ip } : {}),
+      ...(r.user_agent ? { userAgent: r.user_agent } : {}),
+    })),
+  );
+});
+
 /** Estado: cuándo se publicó y cuándo lo vio el cliente por última vez. */
 api.get("/portals/:clientId", async (c) => {
   const row = await c.env.DB.prepare("SELECT published_at, last_viewed_at, views FROM portals WHERE client_id = ?")
@@ -165,7 +228,10 @@ api.get("/portals/:clientId", async (c) => {
 
 /** Desactiva el portal de un cliente (el enlace deja de funcionar). */
 api.delete("/portals/:clientId", async (c) => {
-  await c.env.DB.prepare("DELETE FROM portals WHERE client_id = ?").bind(c.req.param("clientId")).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM portals WHERE client_id = ?").bind(c.req.param("clientId")),
+    c.env.DB.prepare("DELETE FROM acceptances WHERE client_id = ?").bind(c.req.param("clientId")),
+  ]);
   return c.body(null, 204);
 });
 

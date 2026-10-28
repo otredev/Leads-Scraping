@@ -1,5 +1,6 @@
 import type { Child } from "hono/jsx";
 import type { PortalItem, PortalProject, PortalSnapshot } from "../../src/core/portal";
+import { DocumentsList } from "./documents";
 
 // ── Formatos (en la zona horaria de tu app) ──
 
@@ -11,7 +12,7 @@ export const fmt = (tz: string, opts: Intl.DateTimeFormatOptions) => {
   }
 };
 /** "2026-11-30" o ISO → "30 nov 2026" */
-function day(value: string | undefined, tz: string) {
+export function day(value: string | undefined, tz: string) {
   if (!value) return "";
   const d = value.length === 10 ? new Date(`${value}T12:00:00Z`) : new Date(value);
   return fmt(value.length === 10 ? "UTC" : tz, { day: "numeric", month: "short", year: "numeric" }).format(d);
@@ -19,7 +20,7 @@ function day(value: string | undefined, tz: string) {
 function dateTime(value: string, tz: string) {
   return fmt(tz, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
-function money(amount: number | undefined, currency: string) {
+export function money(amount: number | undefined, currency: string) {
   if (amount === undefined) return "—";
   try {
     return new Intl.NumberFormat("es", { style: "currency", currency, maximumFractionDigits: amount % 1 ? 2 : 0 }).format(amount);
@@ -66,7 +67,7 @@ export function Layout({ title, children, brand }: { title: string; children: Ch
   );
 }
 
-function Header({ snap, back }: { snap: PortalSnapshot; back?: string }) {
+export function Header({ snap, back, backLabel = "Todos los proyectos" }: { snap: PortalSnapshot; back?: string; backLabel?: string }) {
   return (
     <header class="top">
       <span class="brand">
@@ -77,7 +78,7 @@ function Header({ snap, back }: { snap: PortalSnapshot; back?: string }) {
       </span>
       {back && (
         <a class="back" href={back}>
-          ← Todos los proyectos
+          ← {backLabel}
         </a>
       )}
     </header>
@@ -89,7 +90,7 @@ function Progress({ value, big }: { value: number; big?: boolean }) {
   return <progress class={big ? "progress big" : "progress"} value={value} max={100} aria-label={`Avance ${value}%`} />;
 }
 
-function Contact({ snap }: { snap: PortalSnapshot }) {
+export function Contact({ snap }: { snap: PortalSnapshot }) {
   const b = snap.brand;
   if (!b.email && !b.phone && !b.whatsapp) return null;
   return (
@@ -128,7 +129,7 @@ export function LegalLinks() {
   );
 }
 
-function Footer({ snap }: { snap: PortalSnapshot }) {
+export function Footer({ snap }: { snap: PortalSnapshot }) {
   return (
     <footer class="foot">
       <p>
@@ -224,6 +225,7 @@ export function ProjectsPage({ snap, token }: { snap: PortalSnapshot; token: str
             })}
           </ul>
         )}
+        <DocumentsList snap={snap} token={token} />
         <Contact snap={snap} />
       </main>
       <Footer snap={snap} />

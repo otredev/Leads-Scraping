@@ -43,6 +43,10 @@ export interface Client {
   channel?: string;
   /** Sector o tipo de negocio (para Finanzas → segmentos). Sin valor: la categoría del lead. */
   category?: string;
+  /** NIF / CIF para las facturas. */
+  taxId?: string;
+  /** Razón social si es distinta del nombre (para facturas y contratos). */
+  legalName?: string;
   archived?: boolean;
   /** Portal del cliente (enlace privado). El token solo se guarda aquí; el portal guarda su hash. */
   portal?: ClientPortal;

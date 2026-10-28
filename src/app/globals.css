@@ -245,3 +245,37 @@
 .docs-prose table { width: 100%; border-collapse: collapse; font-size: 14px; display: block; overflow-x: auto; }
 .docs-prose th { text-align: left; font-weight: 600; color: var(--fg); background: var(--surface-2); }
 .docs-prose th, .docs-prose td { border: 1px solid var(--line); padding: 7px 10px; vertical-align: top; }
+
+/* ── Documentos: texto de propuestas y contratos (papel blanco también en modo oscuro) ── */
+.doc-prose {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #2a2a2a;
+}
+.doc-prose > * + * { margin-top: 0.8em; }
+.doc-prose h1, .doc-prose h2, .doc-prose h3 { color: #111; font-weight: 600; line-height: 1.3; margin-top: 1.5em; }
+.doc-prose h1 { font-size: 20px; }
+.doc-prose h2 { font-size: 16px; }
+.doc-prose h3 { font-size: 14.5px; }
+.doc-prose strong { color: #111; font-weight: 600; }
+.doc-prose a { text-decoration: underline; text-underline-offset: 2px; }
+.doc-prose ul, .doc-prose ol { padding-left: 1.4em; }
+.doc-prose ul { list-style: disc; }
+.doc-prose ol { list-style: decimal; }
+.doc-prose li + li { margin-top: 0.25em; }
+.doc-prose blockquote { border-left: 3px solid #ddd; padding-left: 12px; color: #555; }
+.doc-prose table { width: 100%; border-collapse: collapse; }
+.doc-prose th, .doc-prose td { border: 1px solid #e2e2e2; padding: 6px 8px; text-align: left; }
+.doc-prose hr { border: 0; border-top: 1px solid #e2e2e2; }
+
+/* Imprimir / Guardar como PDF: solo el documento, en A4. */
+@media print {
+  @page { size: A4; margin: 16mm 15mm; }
+  html, body { background: #fff !important; }
+  body * { visibility: hidden; }
+  .no-print { display: none !important; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  .doc-prose h2, .doc-prose h3 { break-after: avoid; }
+  .print-area tr, .print-area dl { break-inside: avoid; }
+}

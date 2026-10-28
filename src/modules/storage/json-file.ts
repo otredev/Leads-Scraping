@@ -9,6 +9,7 @@ import { normalizeProject, type Client, type Project } from "@/core/clients";
 import type { Backup, ImportSummary } from "@/core/storage";
 import type { Search } from "@/core/search";
 import type { Expense } from "@/core/finance";
+import type { DocTemplate, Document } from "@/core/documents";
 
 /**
  * Almacenamiento en ficheros JSON dentro de DATA_DIR (por defecto ./data).
@@ -43,6 +44,14 @@ class JsonFileStore implements LeadStore {
 
   private get projectsFile() {
     return path.join(this.dir, "projects.json");
+  }
+
+  private get documentsFile() {
+    return path.join(this.dir, "documents.json");
+  }
+
+  private get docTemplatesFile() {
+    return path.join(this.dir, "doc-templates.json");
   }
 
   private get expensesFile() {
@@ -419,6 +428,55 @@ class JsonFileStore implements LeadStore {
     });
   }
 
+  // ── Documentos ──
+
+  private upsert<T extends { id: string }>(file: string, item: T) {
+    return this.lock(async () => {
+      const all = await this.read<T[]>(file, []);
+      const i = all.findIndex((x) => x.id === item.id);
+      if (i === -1) all.push(item);
+      else all[i] = item;
+      await this.write(file, all);
+    });
+  }
+
+  private remove<T extends { id: string }>(file: string, id: string) {
+    return this.lock(async () => {
+      const all = await this.read<T[]>(file, []);
+      await this.write(file, all.filter((x) => x.id !== id));
+    });
+  }
+
+  async listDocuments(opts: { clientId?: string } = {}) {
+    return (await this.read<Document[]>(this.documentsFile, []))
+      .filter((d) => !opts.clientId || d.clientId === opts.clientId)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getDocument(id: string) {
+    return (await this.read<Document[]>(this.documentsFile, [])).find((d) => d.id === id);
+  }
+
+  putDocument(doc: Document) {
+    return this.upsert(this.documentsFile, doc);
+  }
+
+  deleteDocument(id: string) {
+    return this.remove<Document>(this.documentsFile, id);
+  }
+
+  async listDocTemplates() {
+    return (await this.read<DocTemplate[]>(this.docTemplatesFile, [])).sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }
+
+  putDocTemplate(t: DocTemplate) {
+    return this.upsert(this.docTemplatesFile, t);
+  }
+
+  deleteDocTemplate(id: string) {
+    return this.remove<DocTemplate>(this.docTemplatesFile, id);
+  }
+
 
   // ── Datos internos de los módulos ──
 
@@ -458,6 +516,8 @@ class JsonFileStore implements LeadStore {
       clients: await this.listClients(),
       projects: await this.listProjects(),
       expenses: await this.listExpenses(),
+      documents: await this.listDocuments(),
+      docTemplates: await this.listDocTemplates(),
     };
   }
 
@@ -491,6 +551,9 @@ class JsonFileStore implements LeadStore {
     for (const c of backup.clients ?? []) if (!(await this.getClient(c.id))) await this.putClient(c);
     for (const p of backup.projects ?? []) if (!(await this.getProject(p.id))) await this.putProject(p);
     for (const e of backup.expenses ?? []) if (!(await this.getExpense(e.id))) await this.putExpense(e);
+    for (const d of backup.documents ?? []) if (!(await this.getDocument(d.id))) await this.putDocument(d);
+    const templates = new Set((await this.listDocTemplates()).map((t) => t.id));
+    for (const t of backup.docTemplates ?? []) if (!templates.has(t.id)) await this.putDocTemplate(t);
     return summary;
   }
 }

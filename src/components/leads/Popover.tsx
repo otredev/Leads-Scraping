@@ -43,7 +43,7 @@ export function Popover({
   const close = () => setOpen(false);
   return (
     <div className="relative" ref={ref}>
-      <button className={buttonClassName} onClick={() => setOpen((v) => !v)} aria-expanded={open} disabled={disabled} title={title}>
+      <button type="button" className={buttonClassName} onClick={() => setOpen((v) => !v)} aria-expanded={open} disabled={disabled} title={title}>
         {label}
       </button>
       {open && (

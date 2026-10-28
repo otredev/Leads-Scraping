@@ -8,9 +8,9 @@ import { api, postJson } from "../data/DataProvider";
 import { LeadPicker, type LeadOption } from "../calendar/LeadPicker";
 import { Dialog, Field } from "./Dialog";
 
-type Draft = Pick<Client, "name" | "contactName" | "email" | "phone" | "website" | "address" | "notes" | "channel" | "category">;
+type Draft = Pick<Client, "name" | "contactName" | "email" | "phone" | "website" | "address" | "notes" | "channel" | "category" | "taxId" | "legalName">;
 
-const empty: Draft = { name: "", contactName: "", email: "", phone: "", website: "", address: "", notes: "", channel: "", category: "" };
+const empty: Draft = { name: "", contactName: "", email: "", phone: "", website: "", address: "", notes: "", channel: "", category: "", taxId: "", legalName: "" };
 
 /** Crear (a mano o desde un lead) o editar un cliente. */
 export function ClientForm({ client, onClose, onSaved }: { client?: Client; onClose(): void; onSaved(client: Client): void }) {
@@ -119,8 +119,14 @@ export function ClientForm({ client, onClose, onSaved }: { client?: Client; onCl
             <Field label="Web">
               <input className="input" value={draft.website ?? ""} onChange={set("website")} placeholder="ejemplo.com" />
             </Field>
-            <Field label="Dirección" className="sm:col-span-2">
+            <Field label="Dirección" className="sm:col-span-2" hint="Completa (calle, CP y ciudad): aparece en facturas y contratos">
               <input className="input" value={draft.address ?? ""} onChange={set("address")} />
+            </Field>
+            <Field label="NIF / CIF" hint="Necesario para emitirle facturas">
+              <input className="input" value={draft.taxId ?? ""} onChange={set("taxId")} maxLength={30} autoComplete="off" />
+            </Field>
+            <Field label="Razón social" hint="Si es distinta del nombre">
+              <input className="input" value={draft.legalName ?? ""} onChange={set("legalName")} maxLength={200} />
             </Field>
             <Field label="Canal de captación" hint="Para medir qué te trae clientes (Finanzas)">
               <input
