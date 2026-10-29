@@ -176,6 +176,8 @@ export interface PortalBrandSettings {
   taxId?: string;
   legalAddress?: string;
   registry?: string;
+  /** No ofrecer avisos push a los clientes en su portal (por defecto se ofrecen). */
+  clientPushOff?: boolean;
 }
 
 export const DEFAULT_STAGES: Stage[] = [

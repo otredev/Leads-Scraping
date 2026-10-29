@@ -8,6 +8,8 @@
  * - /p/<token>/legal/<p>  páginas legales dentro del portal
  *
  * Antes de ver nada, el cliente acepta el aviso legal y la privacidad (tabla consents).
+ * Con portal.js, los mensajes se actualizan solos y el cliente puede activar avisos
+ * push (los envía tu app con su clave VAPID; aquí solo se guardan las suscripciones).
  * - /legal/<página>      aviso legal, privacidad y cookies (con tus datos de Ajustes)
  * - /api/*                API privada para que tu app publique (Bearer PORTAL_SECRET)
  *
@@ -20,11 +22,12 @@ import type { Context } from "hono";
 import type { PortalSite, PortalSnapshot } from "../../src/core/portal";
 import { CSS, CSS_VERSION } from "./styles";
 import { FONT_WOFF2 } from "./font";
+import { CLIENT_JS, CLIENT_JS_VERSION, SERVICE_WORKER_JS } from "./client";
 import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
 import { DocumentPage } from "./documents";
 import { LEGAL_PAGES, LegalPage, policyVersion, type LegalSlug } from "./legal";
 import { ConsentPage } from "./consent";
-import { MESSAGE_MAX_LENGTH, MessagesPage, type PortalMessage } from "./messages";
+import { MESSAGE_MAX_LENGTH, MessagesPage, messageMeta, type PortalMessage } from "./messages";
 
 type Env = { DB: D1Database; PORTAL_SECRET: string };
 
@@ -41,6 +44,10 @@ app.use(
       styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:"],
       fontSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      workerSrc: ["'self'"],
+      manifestSrc: ["'self'"],
       baseUri: ["'none'"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
@@ -58,6 +65,12 @@ app.get("/portal.css", (c) => {
   c.header("Cache-Control", c.req.query("v") === CSS_VERSION ? "public, max-age=31536000, immutable" : "no-cache");
   return c.body(CSS, 200, { "Content-Type": "text/css; charset=utf-8" });
 });
+app.get("/portal.js", (c) => {
+  c.header("Cache-Control", c.req.query("v") === CLIENT_JS_VERSION ? "public, max-age=31536000, immutable" : "no-cache");
+  return c.body(CLIENT_JS, 200, { "Content-Type": "text/javascript; charset=utf-8" });
+});
+// Sin caché: así el navegador recoge siempre la última versión del service worker.
+app.get("/sw.js", (c) => c.body(SERVICE_WORKER_JS, 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }));
 const fontBytes = Uint8Array.from(atob(FONT_WOFF2), (ch) => ch.charCodeAt(0));
 app.get("/font.woff2", (c) => {
   c.header("Cache-Control", "public, max-age=31536000, immutable");
@@ -152,10 +165,10 @@ async function gate(c: Ctx, render: (snap: PortalSnapshot, token: string) => Res
 
 async function loadMessages(db: D1Database, clientId: string): Promise<PortalMessage[]> {
   const { results } = await db
-    .prepare("SELECT id, author, body, project_name, created_at FROM messages WHERE client_id = ? ORDER BY seq DESC LIMIT 200")
+    .prepare("SELECT seq, id, author, body, project_name, created_at FROM messages WHERE client_id = ? ORDER BY seq DESC LIMIT 200")
     .bind(clientId)
-    .all<{ id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
-  return results.reverse().map((r) => ({ id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
+    .all<{ seq: number; id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
+  return results.reverse().map((r) => ({ seq: r.seq, id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
 }
 
 app.get("/p/:token", (c) => gate(c, async (snap, token) => c.html(<ProjectsPage snap={snap} token={token} messages={await loadMessages(c.env.DB, snap.client.id)} />)));
@@ -218,6 +231,85 @@ app.post("/p/:token/mensajes", bodyLimit({ maxSize: 16 * 1024 }), (c) => {
       .run();
     return back("ok=1");
   });
+});
+
+// ── Mensajes en vivo y avisos push (los usa portal.js) ──
+
+/** Igual que gate(), pero para las peticiones de portal.js: responde JSON. */
+async function gateJson(c: Ctx, run: (snap: PortalSnapshot) => Response | Promise<Response>) {
+  const snap = await loadPortal(c, c.req.param("token")!, { countVisit: false });
+  if (!snap) return c.json({ error: "No disponible" }, 404);
+  if (!(await consentState(c, snap.client.id)).ok) return c.json({ error: "Falta aceptar las condiciones" }, 403);
+  return run(snap);
+}
+
+/** Mensajes con seq > after, con su línea de autor y hora ya formateada. */
+app.get("/p/:token/mensajes.json", (c) =>
+  gateJson(c, async (snap) => {
+    const after = Number(c.req.query("after") ?? 0) || 0;
+    const { results } = await c.env.DB.prepare(
+      "SELECT seq, id, author, body, project_name, created_at FROM messages WHERE client_id = ? AND seq > ? ORDER BY seq LIMIT 100",
+    )
+      .bind(snap.client.id, after)
+      .all<{ seq: number; id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
+    const messages: PortalMessage[] = results.map((r) => ({ seq: r.seq, id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
+    // Si le llega una respuesta tuya con la página abierta, cuenta como vista.
+    if (messages.some((m) => m.author === "admin"))
+      c.executionCtx.waitUntil(
+        c.env.DB.prepare("INSERT INTO message_seen (client_id, seen_at) VALUES (?1, ?2) ON CONFLICT(client_id) DO UPDATE SET seen_at = ?2")
+          .bind(snap.client.id, new Date().toISOString())
+          .run(),
+      );
+    return c.json({ messages: messages.map((m) => ({ seq: m.seq, author: m.author, body: m.body, meta: messageMeta(m, snap) })) });
+  }),
+);
+
+/** Activa ({ endpoint, keys }) o desactiva ({ endpoint, remove: true }) los avisos en un dispositivo. */
+app.post("/p/:token/push", bodyLimit({ maxSize: 8 * 1024 }), (c) => {
+  if (!sameOrigin(c)) return c.json({ error: "Origen no permitido" }, 403);
+  return gateJson(c, async (snap) => {
+    const body = await c.req.json<{ endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown }; remove?: unknown }>().catch(() => undefined);
+    const endpoint = typeof body?.endpoint === "string" && /^https:\/\/[^\s]{10,1000}$/.test(body.endpoint) ? body.endpoint : undefined;
+    if (!endpoint) return c.json({ error: "Suscripción no válida" }, 400);
+    if (body!.remove === true) {
+      await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ? AND client_id = ?").bind(endpoint, snap.client.id).run();
+      return c.json({ ok: true });
+    }
+    const key = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_=-]{16,200}$/.test(v) ? v : undefined);
+    const p256dh = key(body!.keys?.p256dh);
+    const auth = key(body!.keys?.auth);
+    if (!p256dh || !auth) return c.json({ error: "Suscripción no válida" }, 400);
+    const count = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE client_id = ? AND endpoint != ?").bind(snap.client.id, endpoint).first<{ n: number }>();
+    if ((count?.n ?? 0) >= 20) return c.json({ error: "Demasiados dispositivos" }, 429);
+    await c.env.DB.prepare(
+      `INSERT INTO push_subscriptions (endpoint, client_id, p256dh, auth, user_agent, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(endpoint) DO UPDATE SET client_id = ?2, p256dh = ?3, auth = ?4, user_agent = ?5`,
+    )
+      .bind(endpoint, snap.client.id, p256dh, auth, clientUa(c), new Date().toISOString())
+      .run();
+    return c.json({ ok: true });
+  });
+});
+
+/** Para instalarlo en la pantalla de inicio (en iPhone es necesario para recibir avisos). */
+app.get("/p/:token/manifest.webmanifest", async (c) => {
+  const token = c.req.param("token");
+  const snap = await loadPortal(c, token, { countVisit: false });
+  if (!snap) return c.json({ error: "No disponible" }, 404);
+  return c.json(
+    {
+      name: `${snap.brand.name} · Portal de clientes`,
+      short_name: snap.brand.name.slice(0, 24),
+      start_url: `/p/${token}`,
+      scope: `/p/${token}`,
+      display: "standalone",
+      background_color: "#f5f5f5",
+      theme_color: "#f5f5f5",
+      lang: "es",
+    },
+    200,
+    { "Content-Type": "application/manifest+json" },
+  );
 });
 
 app.get("/p/:token/d/:docId", (c) =>
@@ -291,6 +383,9 @@ api.put("/portals/:clientId", bodyLimit({ maxSize: 1024 * 1024 }), async (c) => 
   if (!body?.tokenHash || !/^[a-f0-9]{64}$/.test(body.tokenHash)) return c.json({ error: "tokenHash no válido" }, 400);
   if (!body.snapshot || body.snapshot.version !== 1 || body.snapshot.client?.id !== clientId) return c.json({ error: "Snapshot no válido" }, 400);
   const now = new Date().toISOString();
+  // Enlace nuevo: los avisos activados con el anterior abrirían una dirección que ya no existe.
+  const prev = await c.env.DB.prepare("SELECT token_hash FROM portals WHERE client_id = ?").bind(clientId).first<{ token_hash: string }>();
+  if (prev && prev.token_hash !== body.tokenHash) await c.env.DB.prepare("DELETE FROM push_subscriptions WHERE client_id = ?").bind(clientId).run();
   await c.env.DB.prepare(
     `INSERT INTO portals (client_id, token_hash, snapshot, published_at) VALUES (?1, ?2, ?3, ?4)
      ON CONFLICT(client_id) DO UPDATE SET token_hash = ?2, snapshot = ?3, published_at = ?4`,
@@ -383,13 +478,32 @@ api.post("/portals/:clientId/messages", bodyLimit({ maxSize: 32 * 1024 }), async
   return c.json({ ok: true, seq: row?.seq });
 });
 
-/** Estado: cuándo se publicó y cuándo lo vio el cliente por última vez. */
+/** Estado: cuándo se publicó, cuándo lo vio el cliente y en cuántos dispositivos tiene los avisos. */
 api.get("/portals/:clientId", async (c) => {
-  const row = await c.env.DB.prepare("SELECT published_at, last_viewed_at, views FROM portals WHERE client_id = ?")
-    .bind(c.req.param("clientId"))
-    .first<{ published_at: string; last_viewed_at: string | null; views: number }>();
+  const id = c.req.param("clientId");
+  const [portal, push] = await c.env.DB.batch([
+    c.env.DB.prepare("SELECT published_at, last_viewed_at, views FROM portals WHERE client_id = ?").bind(id),
+    c.env.DB.prepare("SELECT COUNT(*) AS n FROM push_subscriptions WHERE client_id = ?").bind(id),
+  ]);
+  const row = portal.results[0] as { published_at: string; last_viewed_at: string | null; views: number } | undefined;
   if (!row) return c.json({ error: "No publicado" }, 404);
-  return c.json({ publishedAt: row.published_at, lastViewedAt: row.last_viewed_at ?? undefined, views: row.views });
+  return c.json({ publishedAt: row.published_at, lastViewedAt: row.last_viewed_at ?? undefined, views: row.views, pushDevices: (push.results[0] as { n: number }).n });
+});
+
+/** Dispositivos del cliente con avisos: tu app les envía el push (con su clave VAPID). */
+api.get("/portals/:clientId/push", async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE client_id = ?")
+    .bind(c.req.param("clientId"))
+    .all<{ endpoint: string; p256dh: string; auth: string }>();
+  return c.json(results.map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } })));
+});
+
+/** Suscripciones caducadas (el navegador las dio de baja): { endpoints: string[] }. */
+api.post("/push/expired", bodyLimit({ maxSize: 64 * 1024 }), async (c) => {
+  const body = await c.req.json<{ endpoints?: unknown }>().catch(() => undefined);
+  const endpoints = Array.isArray(body?.endpoints) ? body.endpoints.filter((e): e is string => typeof e === "string").slice(0, 100) : [];
+  if (endpoints.length) await c.env.DB.batch(endpoints.map((e) => c.env.DB.prepare("DELETE FROM push_subscriptions WHERE endpoint = ?").bind(e)));
+  return c.json({ removed: endpoints.length });
 });
 
 /** Desactiva el portal de un cliente (el enlace deja de funcionar). */
@@ -400,6 +514,7 @@ api.delete("/portals/:clientId", async (c) => {
     c.env.DB.prepare("DELETE FROM consents WHERE client_id = ?").bind(c.req.param("clientId")),
     c.env.DB.prepare("DELETE FROM messages WHERE client_id = ?").bind(c.req.param("clientId")),
     c.env.DB.prepare("DELETE FROM message_seen WHERE client_id = ?").bind(c.req.param("clientId")),
+    c.env.DB.prepare("DELETE FROM push_subscriptions WHERE client_id = ?").bind(c.req.param("clientId")),
   ]);
   return c.body(null, 204);
 });

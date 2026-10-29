@@ -245,6 +245,7 @@ Una web aparte en Cloudflare (gratis) donde cada cliente, con su **enlace privad
 - El cliente escribe desde su portal (opcionalmente sobre un proyecto) y ve tus respuestas en la misma conversación.
 - En la app, **Mensajes** muestra las conversaciones con los sin leer (también en el menú lateral), y respondes al momento. Ves **Enviado / Visto** y si aceptó las condiciones.
 - **Notas internas** en la conversación que solo ves tú.
+- En el portal la conversación se actualiza sola, y el cliente puede **activar avisos push** para enterarse de tus respuestas y de los documentos que le envías (los envía tu app con tus claves VAPID; se pueden desactivar en Ajustes → Portal del cliente).
 - La app recoge los mensajes cada minuto (cada 20 s con Mensajes abierto) y avisa con notificación push. Hay una tarjeta Mensajes en la ficha de cada cliente.
 - Los mensajes viven en el portal (D1) con copia en la app (incluida en la copia de seguridad). Sin adjuntos; máximo 30 mensajes por hora por cliente.
 

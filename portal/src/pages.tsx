@@ -1,8 +1,9 @@
 import type { Child } from "hono/jsx";
 import type { PortalItem, PortalProject, PortalSnapshot } from "../../src/core/portal";
 import { DocumentsList } from "./documents";
-import { MessagesCard, type PortalMessage } from "./messages";
+import { MessagesCard, PushCard, type PortalMessage } from "./messages";
 import { CSS_VERSION } from "./styles";
+import { CLIENT_JS_VERSION } from "./client";
 
 // ── Formatos (en la zona horaria de tu app) ──
 
@@ -50,7 +51,7 @@ function nextMilestone(p: PortalProject) {
 
 // ── Piezas ──
 
-export function Layout({ title, children, brand }: { title: string; children: Child; brand?: string }) {
+export function Layout({ title, children, brand, token }: { title: string; children: Child; brand?: string; token?: string }) {
   return (
     <html lang="es">
       <head>
@@ -62,6 +63,10 @@ export function Layout({ title, children, brand }: { title: string; children: Ch
         <title>{brand ? `${title} · ${brand}` : title}</title>
         <link rel="preload" href="/font.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
         <link rel="stylesheet" href={`/portal.css?v=${CSS_VERSION}`} />
+        {token && <link rel="manifest" href={`/p/${token}/manifest.webmanifest`} />}
+        <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+        <script src={`/portal.js?v=${CLIENT_JS_VERSION}`} defer />
       </head>
       <body>
         <div class="wrap">{children}</div>
@@ -209,7 +214,7 @@ export function ProjectsPage({ snap, token, messages }: { snap: PortalSnapshot; 
   const tz = snap.timeZone;
   const name = snap.client.contactName ?? snap.client.name;
   return (
-    <Layout title={snap.client.name} brand={snap.brand.name}>
+    <Layout title={snap.client.name} brand={snap.brand.name} token={token}>
       <Header snap={snap} token={token} />
       <main>
         <section class="hero">
@@ -251,6 +256,7 @@ export function ProjectsPage({ snap, token, messages }: { snap: PortalSnapshot; 
           </ul>
         )}
         <MessagesCard snap={snap} token={token} messages={messages} />
+        <PushCard snap={snap} />
         <DocumentsList snap={snap} token={token} />
         <Contact snap={snap} />
       </main>
@@ -298,7 +304,7 @@ export function ProjectPage({ snap, project: p, token }: { snap: PortalSnapshot;
   const backHref = snap.projects.length > 1 ? `/p/${token}` : undefined;
 
   return (
-    <Layout title={p.name} brand={snap.brand.name}>
+    <Layout title={p.name} brand={snap.brand.name} token={token}>
       <Header snap={snap} token={token} back={backHref} />
       <main>
         <section class="card">

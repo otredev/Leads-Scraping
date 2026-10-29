@@ -175,6 +175,11 @@ export async function sendMessage(clientId: string, raw: unknown): Promise<Messa
   // Al responder, lo anterior del cliente queda leído.
   await markRead(clientId);
   await store.putMessages([message]);
+  if (message.author === "admin") {
+    const [{ notifyClientSoon }, settings] = await Promise.all([import("./client-push"), store.getSettings()]);
+    const brand = settings.portal?.brandName?.trim() || "Portal de clientes";
+    notifyClientSoon(clientId, { title: `Nuevo mensaje de ${brand}`, body: body.length > 160 ? `${body.slice(0, 157)}…` : body, path: "mensajes", tag: "mensajes" });
+  }
   return message;
 }
 

@@ -81,6 +81,25 @@ export function PortalSettingsCard({ settings }: { settings: CrmSettings }) {
             </Field>
           </div>
 
+          <div id="avisos-clientes" className="flex scroll-mt-6 flex-col gap-2 border-t border-line pt-4">
+            <p className="text-[13.5px] font-semibold">Avisos a tus clientes</p>
+            <label className="flex cursor-pointer items-start gap-2.5 text-[13.5px]">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={!draft.clientPushOff}
+                onChange={(e) => setDraft((d) => ({ ...d, clientPushOff: e.target.checked ? undefined : true }))}
+              />
+              <span>
+                Ofrecer avisos push en el portal
+                <span className="block text-[13px] text-muted">
+                  El cliente los activa con un botón en su portal y le llega una notificación cuando le respondes o le envías una propuesta, un contrato o una
+                  factura. En iPhone, primero tiene que añadir el portal a la pantalla de inicio.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <div id="datos-legales" className="flex scroll-mt-6 flex-col gap-1 border-t border-line pt-4">
             <p className="text-[13.5px] font-semibold">Datos legales</p>
             <p className="text-[13px] text-muted">

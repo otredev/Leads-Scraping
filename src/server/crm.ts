@@ -344,6 +344,7 @@ export async function savePortalBrand(raw: unknown) {
     taxId: text("taxId", 30)?.toUpperCase(),
     legalAddress: text("legalAddress", 300),
     registry: text("registry", 300),
+    clientPushOff: r.clientPushOff === true ? true : undefined,
   };
   const store = getStore();
   const next: CrmSettings = { ...(await store.getSettings()), portal: Object.fromEntries(Object.entries(portal).filter(([, v]) => v)) };

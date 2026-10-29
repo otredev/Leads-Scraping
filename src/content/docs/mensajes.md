@@ -13,6 +13,21 @@ Cada cliente con el [portal](/ayuda/portal) activo puede escribirte desde su enl
 - En su página principal ve los **últimos mensajes** y un acceso a **Mensajes**.
 - Escribe y, si quiere, elige **sobre qué proyecto** es. Tus respuestas le aparecen en la misma conversación.
 - No necesita registrarse: le basta su enlace privado.
+- La conversación **se actualiza sola**: si le respondes con su portal abierto, tu mensaje le aparece en unos segundos, sin recargar.
+
+## Avisos para el cliente
+
+En su portal, el cliente puede pulsar **Activar avisos** (tarjeta *Avisos*) y le llegará una **notificación push** a ese dispositivo cuando:
+
+- le **respondes** en Mensajes, o
+- le **envías** una propuesta o un contrato, o **emites** una factura visible en su portal. Al pulsar el aviso se abre directamente el documento.
+
+Los envía tu app con las mismas claves que tus propios avisos, así que **tiene que estar encendida** cuando respondes (lo estará, porque respondes desde ella). Es gratis y no hace falta ningún servicio más.
+
+- En la ficha del cliente, la tarjeta del portal muestra en cuántos **dispositivos** los tiene activados.
+- En **iPhone y iPad**, primero tiene que añadir el portal a la pantalla de inicio (Compartir → *Añadir a pantalla de inicio*) y abrirlo desde allí; el portal se lo explica.
+- Puede desactivarlos con el mismo botón. Si **renuevas su enlace**, los avisos se desactivan y tendrá que activarlos otra vez.
+- Si prefieres no ofrecerlos, desmarca **Ofrecer avisos push en el portal** en [Ajustes → Portal del cliente](/ajustes?seccion=portal#avisos-clientes).
 
 ## En la app
 

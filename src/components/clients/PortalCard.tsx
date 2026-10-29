@@ -170,6 +170,16 @@ export function PortalCard({ client }: { client: Client }) {
                   ? "Todavía no lo ha abierto"
                   : "—"}
             </dd>
+            {state.remote && (
+              <>
+                <dt className="text-muted">Avisos</dt>
+                <dd>
+                  {state.remote.pushDevices
+                    ? `Activados en ${state.remote.pushDevices} ${state.remote.pushDevices === 1 ? "dispositivo" : "dispositivos"}`
+                    : "No los ha activado"}
+                </dd>
+              </>
+            )}
           </dl>
           {(state.lastError || state.remoteError) && <p className="rounded-lg bg-danger-soft px-3 py-2 text-[13px] text-danger">{state.lastError ?? state.remoteError}</p>}
           <p className="hint">Solo ve los hitos y tareas con el ojo activado, y los pagos si lo activas en cada proyecto.</p>

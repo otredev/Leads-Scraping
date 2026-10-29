@@ -88,7 +88,7 @@ export function DocumentPage({
   const isInvoice = doc.type === "invoice";
   const verb = doc.type === "contract" ? "firmado" : "aceptado";
   return (
-    <Layout title={doc.title} brand={snap.brand.name}>
+    <Layout title={doc.title} brand={snap.brand.name} token={token}>
       <Header snap={snap} token={token} back={`/p/${token}`} backLabel="Volver" />
       <main>
         {acceptance && (

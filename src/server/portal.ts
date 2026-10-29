@@ -5,6 +5,7 @@ import type { CrmSettings, PortalBrandSettings } from "@/core/crm";
 import { docTotals, docTypeLabel, statusLabel as docStatusLabel } from "@/core/documents";
 import { PORTAL_SITE_VERSION, PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalDocument, type PortalSite, type PortalSnapshot, type PortalStatus } from "@/core/portal";
 import { getStore } from "./registry";
+import { clientPushKey } from "./client-push";
 
 /**
  * Publicación del portal del cliente (Cloudflare Workers + D1, carpeta portal/).
@@ -154,6 +155,7 @@ export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
     brand,
     timeZone: timeZone(),
     publishedAt: new Date().toISOString(),
+    ...(await clientPushKey().then((k) => (k ? { pushKey: k } : {}))),
     projects: projects
       .filter((p) => p.status !== "cancelled")
       .map((p) => {

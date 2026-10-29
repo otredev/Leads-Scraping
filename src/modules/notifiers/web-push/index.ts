@@ -22,12 +22,13 @@ interface StoredSubscription extends Subscriber {
 const KEYS = "web-push:vapid";
 const SUBS = "web-push:subscriptions";
 
-function subject() {
+export function vapidSubject() {
   const s = process.env.VAPID_SUBJECT?.trim();
   return s && /^(mailto:|https:)/.test(s) ? s : "mailto:avisos@leads-scraping.example";
 }
 
-async function keys(ctx: NotifierContext): Promise<Keys> {
+/** Claves VAPID de la app (las mismas para tus avisos y los de tus clientes). */
+export async function vapidKeys(ctx: Pick<NotifierContext, "updateMeta">): Promise<Keys> {
   const pub = process.env.VAPID_PUBLIC_KEY?.trim();
   const priv = process.env.VAPID_PRIVATE_KEY?.trim();
   if (pub && priv) return { publicKey: pub, privateKey: priv };
@@ -59,7 +60,7 @@ export default defineNotifier({
     return {
       async health() {
         try {
-          await keys(ctx);
+          await vapidKeys(ctx);
           const n = (await list()).length;
           return { ok: true, message: n ? `${n} ${n === 1 ? "dispositivo suscrito" : "dispositivos suscritos"}` : "Ningún dispositivo suscrito" };
         } catch (err) {
@@ -68,7 +69,7 @@ export default defineNotifier({
       },
 
       async clientConfig() {
-        return { publicKey: (await keys(ctx)).publicKey };
+        return { publicKey: (await vapidKeys(ctx)).publicKey };
       },
 
       async subscribe(data, label) {
@@ -94,7 +95,7 @@ export default defineNotifier({
       async send(message) {
         const subs = await list();
         if (!subs.length) return { sent: 0, failed: 0, removed: 0 };
-        const { publicKey, privateKey } = await keys(ctx);
+        const { publicKey, privateKey } = await vapidKeys(ctx);
         const payload = JSON.stringify(message);
         const gone = new Set<string>();
         let sent = 0;
@@ -103,7 +104,7 @@ export default defineNotifier({
           subs.map(async (s) => {
             try {
               await webpush.sendNotification(s.subscription, payload, {
-                vapidDetails: { subject: subject(), publicKey, privateKey },
+                vapidDetails: { subject: vapidSubject(), publicKey, privateKey },
                 TTL: 60 * 60,
                 urgency: "high",
                 ...(message.tag ? { topic: createHash("sha1").update(message.tag).digest("hex").slice(0, 32) } : {}),

@@ -520,8 +520,11 @@ export async function documentAction(id: string, raw: unknown) {
       await logEvent({ type: "cancel", docId: doc.id, docType: doc.type, number: doc.number });
       break;
     }
-    case "issue":
-      return viewDocument(await issueInvoice(doc));
+    case "issue": {
+      const issued = await issueInvoice(doc);
+      if (issued.visibleToClient) notifyDocument(issued);
+      return viewDocument(issued);
+    }
     case "paid": {
       if (doc.type !== "invoice" || !is("issued")) throw conflict("Solo se marca como pagada una factura emitida");
       doc.status = "paid";
@@ -543,7 +546,17 @@ export async function documentAction(id: string, raw: unknown) {
     default:
       throw bad("Acción no válida");
   }
-  return viewDocument(await save(doc));
+  await save(doc);
+  if (a.action === "send" && doc.visibleToClient) notifyDocument(doc);
+  return viewDocument(doc);
+}
+
+/** Aviso push al cliente (si los activó en su portal) de un documento nuevo. */
+function notifyDocument(doc: Document) {
+  const what = doc.type === "invoice" ? `la factura ${doc.number ?? ""}`.trim() : doc.type === "contract" ? "un contrato para firmar" : "una propuesta";
+  void import("./client-push").then(({ notifyClientSoon }) =>
+    notifyClientSoon(doc.clientId, { title: "Tienes un documento nuevo", body: `Te hemos enviado ${what}: ${doc.title}`, path: `d/${doc.id}`, tag: `doc-${doc.id}` }, { publishFirst: true }),
+  );
 }
 
 /** Emite una factura: número correlativo, partes congeladas y registro encadenado. */

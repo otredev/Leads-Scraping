@@ -97,6 +97,8 @@ export interface PortalSnapshot {
   /** Zona horaria para mostrar fechas y horas (la de tu app). */
   timeZone: string;
   publishedAt: string;
+  /** Clave pública VAPID para que el cliente active los avisos push (sin ella, el portal no los ofrece). */
+  pushKey?: string;
 }
 
 /** Datos legales del titular del portal (aviso legal, LSSI art. 10). */
@@ -130,4 +132,6 @@ export interface PortalStatus {
   publishedAt?: string;
   lastViewedAt?: string;
   views: number;
+  /** Dispositivos del cliente con los avisos activados. */
+  pushDevices?: number;
 }
