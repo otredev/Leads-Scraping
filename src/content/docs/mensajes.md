@@ -14,6 +14,7 @@ Cada cliente con el [portal](/ayuda/portal) activo puede escribirte desde su enl
 - Escribe y, si quiere, elige **sobre qué proyecto** es. Tus respuestas le aparecen en la misma conversación.
 - No necesita registrarse: le basta su enlace privado.
 - La conversación **se actualiza sola**: si le respondes con su portal abierto, tu mensaje le aparece en unos segundos, sin recargar.
+- La conversación ocupa la pantalla y el cuadro para escribir queda siempre abajo. En el ordenador, **Enter** envía y **Mayús + Enter** hace un salto de línea.
 
 ## Avisos para el cliente
 
@@ -32,6 +33,7 @@ Los envía tu app con las mismas claves que tus propios avisos, así que **tiene
 ## En la app
 
 - **Mensajes** (menú lateral) muestra las conversaciones con el número de **sin leer**, que también aparece en el menú.
+- Se cargan los **últimos 50 mensajes**; los anteriores aparecen solos al subir hasta arriba (igual en el portal del cliente).
 - Al abrir una conversación sus mensajes quedan leídos. Escribe y pulsa **Enviar** (o Ctrl + Enter): le llega al portal al momento.
 - Bajo tu último mensaje verás **Enviado** o **Visto** (cuando el cliente abrió sus mensajes después).
 - **Nota interna**: marca la casilla para guardar una nota que **solo ves tú** (aparece en amarillo, con un candado). Sirve para apuntar acuerdos, precios o recordatorios en la propia conversación. Las notas se pueden borrar; los mensajes enviados no, porque el cliente ya los tiene.

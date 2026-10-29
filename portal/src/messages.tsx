@@ -74,45 +74,39 @@ const ERRORS: Record<string, string> = {
   limite: "Has enviado muchos mensajes seguidos. Espera un poco y vuelve a intentarlo.",
 };
 
-export function MessagesPage({ snap, token, messages, error, sent }: { snap: PortalSnapshot; token: string; messages: PortalMessage[]; error?: string; sent?: boolean }) {
+/** Mensajes que se cargan de una vez; los anteriores llegan al subir hasta arriba (portal.js). */
+export const MESSAGES_PAGE = 50;
+
+export function MessagesPage({
+  snap,
+  token,
+  messages,
+  hasMore,
+  error,
+  sent,
+}: {
+  snap: PortalSnapshot;
+  token: string;
+  messages: PortalMessage[];
+  hasMore: boolean;
+  error?: string;
+  sent?: boolean;
+}) {
+  const first = messages[0]?.seq ?? 0;
   return (
     <Layout title="Mensajes" brand={snap.brand.name} token={token}>
       <Header snap={snap} token={token} back={`/p/${token}`} backLabel="Volver" />
       <main>
-        <section class="hero">
-          <h1>Mensajes</h1>
-          <p class="muted">Escríbenos sobre tus proyectos: dudas, cambios, contenidos que faltan… Te responderemos aquí.</p>
-        </section>
-        <section class="card">
-          <ul class="thread" data-live-thread data-after={lastSeq(messages)} hidden={!messages.length}>
-            {messages.map((m) => (
-              <Bubble m={m} snap={snap} />
-            ))}
-          </ul>
-          {!messages.length && (
-            <p class="muted" data-thread-empty>
-              Todavía no hay mensajes. Escribe el primero.
-            </p>
-          )}
-        </section>
-        <PushCard snap={snap} />
-        <section class="card" id="escribir">
-          <h2>Nuevo mensaje</h2>
-          {sent && (
-            <p class="callout ok" role="status">
-              Mensaje enviado. Te avisaremos por aquí cuando respondamos.
-            </p>
-          )}
-          {error && ERRORS[error] && (
-            <p class="callout err" role="alert">
-              {ERRORS[error]}
-            </p>
-          )}
-          <form method="post" action={`/p/${token}/mensajes`} class="accept">
+        <section class="card chat" aria-label="Conversación">
+          <header class="chat-head">
+            <div class="chat-title">
+              <h1>Mensajes</h1>
+              <p class="muted small">Dudas, cambios o contenidos que faltan: te respondemos aquí.</p>
+            </div>
             {snap.projects.length > 0 && (
-              <label>
-                <span>Sobre</span>
-                <select name="projectId">
+              <label class="chat-topic">
+                <span class="muted small">Sobre</span>
+                <select name="projectId" form="composer" aria-label="Sobre qué proyecto">
                   <option value="">General</option>
                   {snap.projects.map((p) => (
                     <option value={p.id}>{p.name}</option>
@@ -120,15 +114,47 @@ export function MessagesPage({ snap, token, messages, error, sent }: { snap: Por
                 </select>
               </label>
             )}
-            <label>
-              <span>Mensaje</span>
-              <textarea name="body" required maxlength={MAX_LENGTH} rows={5} />
-            </label>
-            <button class="btn primary" type="submit">
-              Enviar mensaje
-            </button>
+          </header>
+          {/* column-reverse: la conversación empieza abajo (lo último) incluso sin JavaScript. */}
+          <div class="chat-scroll" data-chat-scroll tabindex={0} aria-label="Historial de mensajes">
+            <div class="chat-inner">
+              {hasMore && (
+                <p class="chat-more" data-load-older data-before={first}>
+                  <a href={`/p/${token}/mensajes?todos=1`}>Ver mensajes anteriores</a>
+                </p>
+              )}
+              <ul class="thread" data-live-thread data-after={lastSeq(messages)} hidden={!messages.length} aria-live="polite">
+                {messages.map((m) => (
+                  <Bubble m={m} snap={snap} />
+                ))}
+              </ul>
+              {!messages.length && (
+                <p class="chat-empty muted" data-thread-empty>
+                  Todavía no hay mensajes. Escribe el primero: te contestaremos en esta misma conversación.
+                </p>
+              )}
+            </div>
+          </div>
+          <form id="composer" method="post" action={`/p/${token}/mensajes`} class="composer" data-composer>
+            {sent && (
+              <p class="callout ok composer-note" role="status" data-composer-note>
+                Mensaje enviado. Te avisaremos por aquí cuando respondamos.
+              </p>
+            )}
+            {error && ERRORS[error] && (
+              <p class="callout err composer-note" role="alert" data-composer-note>
+                {ERRORS[error]}
+              </p>
+            )}
+            <div class="composer-row">
+              <textarea name="body" required maxlength={MAX_LENGTH} rows={1} placeholder="Escribe un mensaje…" aria-label="Mensaje" />
+              <button class="btn primary" type="submit">
+                Enviar
+              </button>
+            </div>
           </form>
         </section>
+        <PushCard snap={snap} />
         <Contact snap={snap} />
       </main>
       <Footer snap={snap} token={token} />

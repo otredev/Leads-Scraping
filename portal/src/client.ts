@@ -14,8 +14,8 @@ export const CLIENT_JS = `"use strict";
 
   // ── Mensajes en vivo ──
   const thread = document.querySelector("[data-live-thread]");
+  const scroller = document.querySelector("[data-chat-scroll]");
   let after = thread ? Number(thread.getAttribute("data-after") || 0) : 0;
-  let polling = false;
 
   function bubble(m) {
     const li = document.createElement("li");
@@ -30,15 +30,20 @@ export const CLIENT_JS = `"use strict";
     return li;
   }
 
+  let current = null;
+  // Si ya hay una consulta en marcha, se espera a que acabe y se hace otra.
   async function poll() {
-    if (!thread || polling) return;
-    polling = true;
+    if (!thread) return;
+    while (current) await current;
+    current = fetchNew();
+    try { await current; } finally { current = null; }
+  }
+  async function fetchNew() {
     try {
       const res = await fetch(base + "/mensajes.json?after=" + after, { credentials: "same-origin", cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       if (!data.messages || !data.messages.length) return;
-      const nearBottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 160;
       for (const m of data.messages) {
         thread.append(bubble(m));
         after = Math.max(after, m.seq);
@@ -50,11 +55,10 @@ export const CLIENT_JS = `"use strict";
       const last = data.messages[data.messages.length - 1];
       const badge = document.querySelector("[data-new-reply]");
       if (badge) badge.hidden = last.author !== "admin";
-      if (!limit && nearBottom) thread.lastElementChild.scrollIntoView({ behavior: "smooth", block: "end" });
+      // Lo que escribe el propio cliente: bajar hasta el final de la conversación.
+      if (scroller && last.author === "client") scroller.scrollTop = 0;
     } catch (e) {
       /* sin conexión: se reintenta en la próxima vuelta */
-    } finally {
-      polling = false;
     }
   }
 
@@ -66,6 +70,101 @@ export const CLIENT_JS = `"use strict";
       if (document.visibilityState === "visible") poll();
     });
     addEventListener("focus", poll);
+  }
+
+  // ── Mensajes anteriores: se cargan de 50 en 50 al llegar arriba ──
+  // El historial usa column-reverse: scrollTop es 0 abajo y negativo al subir,
+  // así que añadir mensajes arriba no mueve lo que se está leyendo.
+  const more = document.querySelector("[data-load-older]");
+  let loadingOlder = false;
+  async function loadOlder() {
+    if (!more || !more.isConnected || loadingOlder || !thread) return;
+    loadingOlder = true;
+    more.classList.add("loading");
+    try {
+      const res = await fetch(base + "/mensajes.json?before=" + more.getAttribute("data-before"), { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = data.messages || [];
+      const frag = document.createDocumentFragment();
+      for (const m of items) {
+        const b = bubble(m);
+        b.classList.remove("msg-new");
+        frag.append(b);
+      }
+      thread.prepend(frag);
+      if (items.length) more.setAttribute("data-before", String(items[0].seq));
+      if (!data.hasMore) more.remove();
+    } catch (e) {
+      /* se reintenta al volver a subir */
+    } finally {
+      more.classList.remove("loading");
+      loadingOlder = false;
+    }
+  }
+  if (more && scroller) {
+    const link = more.querySelector("a");
+    if (link) link.addEventListener("click", (e) => { e.preventDefault(); loadOlder(); });
+    scroller.addEventListener("scroll", () => {
+      if (scroller.scrollHeight - scroller.clientHeight - Math.abs(scroller.scrollTop) < 150) loadOlder();
+    }, { passive: true });
+  }
+
+  // ── Escribir: el cuadro crece con el texto; se envía sin recargar la página ──
+  const composer = document.querySelector("[data-composer]");
+  if (composer && thread) {
+    const area = composer.querySelector("textarea");
+    const send = composer.querySelector("button[type=submit]");
+    const grow = () => {
+      area.style.height = "auto";
+      area.style.height = Math.min(area.scrollHeight + 2, 180) + "px";
+    };
+    area.addEventListener("input", grow);
+    // Con teclado físico, Enter envía y Mayús + Enter hace un salto de línea.
+    const desktop = matchMedia("(pointer: fine)").matches;
+    if (desktop) area.setAttribute("title", "Enter para enviar · Mayús + Enter para otra línea");
+    area.addEventListener("keydown", (e) => {
+      if (desktop && e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        composer.requestSubmit();
+      }
+    });
+    const note = (text, tone) => {
+      composer.querySelectorAll("[data-composer-note]").forEach((el) => el.remove());
+      if (!text) return;
+      const p = document.createElement("p");
+      p.className = "callout composer-note " + tone;
+      p.setAttribute("data-composer-note", "");
+      p.setAttribute("role", tone === "err" ? "alert" : "status");
+      p.textContent = text;
+      composer.prepend(p);
+    };
+    const ERRORS = {
+      vacio: "Escribe el mensaje.",
+      largo: "El mensaje es demasiado largo.",
+      limite: "Has enviado muchos mensajes seguidos. Espera un poco y vuelve a intentarlo.",
+    };
+    composer.addEventListener("submit", async (e) => {
+      if (!area.value.trim()) { e.preventDefault(); return; }
+      e.preventDefault();
+      send.disabled = true;
+      try {
+        const res = await fetch(composer.action, { method: "POST", body: new FormData(composer), credentials: "same-origin" });
+        const err = new URL(res.url).searchParams.get("error");
+        if (!res.ok || err) throw new Error(err || "red");
+        area.value = "";
+        grow();
+        note();
+        await poll();
+      } catch (x) {
+        note(ERRORS[x.message] || "No se ha podido enviar. Revisa tu conexión e inténtalo de nuevo.", "err");
+      } finally {
+        send.disabled = false;
+        area.focus();
+      }
+    });
+    // Tras enviar sin JavaScript (?ok=1), dejar la dirección limpia.
+    if (/[?&](ok|error)=/.test(location.search)) history.replaceState(null, "", location.pathname);
   }
 
   // ── Avisos push ──

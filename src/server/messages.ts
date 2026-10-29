@@ -115,12 +115,22 @@ export async function unreadCount() {
   return (await getStore().listMessages()).filter((m) => m.author === "client" && !m.readAt).length;
 }
 
-export async function getThread(clientId: string) {
+/** Mensajes que se cargan de una vez; los anteriores, al subir en la conversación. */
+export const THREAD_PAGE = 50;
+
+/** Conversación: los últimos `limit` mensajes, o los anteriores al mensaje `before`. */
+export async function getThread(clientId: string, { limit = THREAD_PAGE, before }: { limit?: number; before?: string } = {}) {
   const store = getStore();
   const client = await store.getClient(clientId);
   if (!client) throw bad("Cliente no encontrado", 404);
-  const [messages, projects] = await Promise.all([store.listMessages({ clientId }), store.listProjects({ clientId })]);
+  const [all, projects] = await Promise.all([store.listMessages({ clientId }), store.listProjects({ clientId })]);
+  const n = Math.min(Math.max(Math.trunc(limit) || THREAD_PAGE, 1), 500);
+  const end = before ? all.findIndex((m) => m.id === before) : all.length;
+  const stop = end < 0 ? all.length : end;
+  const start = Math.max(0, stop - n);
+  const messages = all.slice(start, stop);
   return {
+    hasMore: start > 0,
     client: { id: client.id, name: client.name, contactName: client.contactName, portalEnabled: Boolean(client.portal), consents: client.consents ?? [], messagesSeenAt: client.messagesSeenAt },
     projects: projects.filter((p) => p.status !== "cancelled").map((p) => ({ id: p.id, name: p.name })),
     messages,

@@ -12,6 +12,8 @@ interface Thread {
   client: { id: string; name: string; contactName?: string; portalEnabled: boolean; consents: PortalConsent[]; messagesSeenAt?: string };
   projects: { id: string; name: string }[];
   messages: Message[];
+  /** Hay mensajes más antiguos sin cargar. */
+  hasMore: boolean;
 }
 
 const timeFmt = new Intl.DateTimeFormat("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -37,7 +39,13 @@ export function Messages() {
   const loadThread = useCallback(async (id: string, markRead = true) => {
     try {
       const t = await api<Thread>(`/api/messages/${id}`);
-      setThread(t);
+      // Se recargan los últimos 50; los anteriores que ya se cargaron al subir se conservan.
+      setThread((prev) => {
+        if (!prev || prev.client.id !== id || !t.messages.length) return t;
+        const firstNew = t.messages[0].createdAt;
+        const older = prev.messages.filter((m) => m.createdAt < firstNew && !t.messages.some((x) => x.id === m.id));
+        return older.length ? { ...t, messages: [...older, ...t.messages], hasMore: prev.hasMore } : t;
+      });
       if (markRead && t.messages.some((m) => m.author === "client" && !m.readAt)) {
         await postJson(`/api/messages/${id}`, { read: true }, "PATCH");
         window.dispatchEvent(new Event("messages:changed"));
@@ -70,7 +78,10 @@ export function Messages() {
 
   return (
     <>
-      <PageHeader title="Mensajes" description="Lo que te escriben tus clientes desde su portal, tus respuestas y tus notas internas." />
+      {/* En el móvil, con una conversación abierta, el título se oculta para dejar sitio al chat. */}
+      <div className={selected ? "hidden lg:block" : ""}>
+        <PageHeader title="Mensajes" description="Lo que te escriben tus clientes desde su portal, tus respuestas y tus notas internas." />
+      </div>
       {(error || list?.syncError) && (
         <div className="mb-4">
           <Notice tone="error" onClose={() => setError(undefined)}>
@@ -78,8 +89,9 @@ export function Messages() {
           </Notice>
         </div>
       )}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <Card bodyClassName="p-0" className={selected ? "hidden lg:flex" : ""}>
+      {/* Alto fijo: la conversación se desplaza dentro y el cuadro de escribir queda siempre a la vista. */}
+      <div className="grid grid-cols-1 gap-5 lg:h-[calc(100dvh-12rem)] lg:min-h-[480px] lg:grid-cols-[320px_minmax(0,1fr)]">
+        <Card bodyClassName="p-0 flex min-h-0 flex-1 flex-col" className={`min-h-0 ${selected ? "hidden lg:flex" : ""}`}>
           <div className="border-b border-line p-3">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
@@ -93,7 +105,7 @@ export function Messages() {
           ) : rows.length === 0 ? (
             <p className="hint p-4">{list.conversations.length ? "Ningún cliente coincide." : "Aún no hay conversaciones. Activa el portal de un cliente para que pueda escribirte."}</p>
           ) : (
-            <ul className="max-h-[70vh] divide-y divide-line overflow-y-auto">
+            <ul className="max-h-[70vh] min-h-0 flex-1 divide-y divide-line overflow-y-auto lg:max-h-none">
               {rows.map((c) => (
                 <li key={c.clientId}>
                   <button
@@ -124,7 +136,7 @@ export function Messages() {
           )}
         </Card>
 
-        <div className={selected ? "" : "hidden lg:block"}>
+        <div className={`min-h-0 ${selected ? "" : "hidden lg:block"}`}>
           {!selected ? (
             <Card>
               <EmptyState title="Elige una conversación">Tus clientes te escriben desde su portal. Aquí respondes y también puedes dejar notas internas que solo ves tú.</EmptyState>
@@ -141,6 +153,13 @@ export function Messages() {
                 void loadThread(selected, false);
                 void loadList();
               }}
+              onOlder={(older, hasMore) =>
+                setThread((prev) =>
+                  prev && prev.client.id === selected
+                    ? { ...prev, messages: [...older.filter((m) => !prev.messages.some((x) => x.id === m.id)), ...prev.messages], hasMore }
+                    : prev,
+                )
+              }
             />
           )}
         </div>
@@ -163,20 +182,57 @@ function ConsentBadge({ consents, portalEnabled }: { consents: PortalConsent[]; 
   );
 }
 
-function ThreadView({ thread, onBack, onSent }: { thread: Thread; onBack(): void; onSent(): void }) {
-  const { client, messages, projects } = thread;
+function ThreadView({
+  thread,
+  onBack,
+  onSent,
+  onOlder,
+}: {
+  thread: Thread;
+  onBack(): void;
+  onSent(): void;
+  onOlder(older: Message[], hasMore: boolean): void;
+}) {
+  const { client, messages, projects, hasMore } = thread;
   const [body, setBody] = useState("");
   const [projectId, setProjectId] = useState("");
   const [internal, setInternal] = useState(!client.portalEnabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const loadingOlder = useRef(false);
+  const [olderError, setOlderError] = useState(false);
   const lastAdmin = [...messages].reverse().find((m) => m.author === "admin");
   const seen = lastAdmin && client.messagesSeenAt && client.messagesSeenAt >= lastAdmin.createdAt;
+  const lastId = messages.at(-1)?.id;
 
+  // El historial usa column-reverse: scrollTop 0 es abajo del todo, y al añadir
+  // mensajes antiguos arriba no se mueve lo que estás leyendo.
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+    const el = scroller.current;
+    if (el && (Math.abs(el.scrollTop) < 120 || messages.at(-1)?.author !== "client")) el.scrollTop = 0;
+    // Solo cuando llega un mensaje nuevo al final.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastId]);
+
+  const loadOlder = useCallback(async () => {
+    if (!hasMore || loadingOlder.current || !messages.length) return;
+    loadingOlder.current = true;
+    setOlderError(false);
+    try {
+      const page = await api<Thread>(`/api/messages/${client.id}?before=${encodeURIComponent(messages[0].id)}`);
+      onOlder(page.messages, page.hasMore);
+    } catch {
+      setOlderError(true);
+    } finally {
+      loadingOlder.current = false;
+    }
+  }, [client.id, hasMore, messages, onOlder]);
+
+  function onScroll() {
+    const el = scroller.current;
+    if (el && el.scrollHeight - el.clientHeight - Math.abs(el.scrollTop) < 150) void loadOlder();
+  }
 
   async function send(e?: React.FormEvent) {
     e?.preventDefault();
@@ -205,7 +261,7 @@ function ThreadView({ thread, onBack, onSent }: { thread: Thread; onBack(): void
   }
 
   return (
-    <section className="card flex min-h-[70vh] flex-col">
+    <section className="card flex h-[calc(100dvh-7rem)] min-h-[400px] flex-col overflow-hidden lg:h-full lg:min-h-0">
       <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 sm:px-5">
         <button type="button" className="btn btn-ghost btn-sm px-1.5 lg:hidden" onClick={onBack} aria-label="Volver a las conversaciones">
           <ArrowLeft className="size-4" aria-hidden />
@@ -220,61 +276,70 @@ function ThreadView({ thread, onBack, onSent }: { thread: Thread; onBack(): void
         </Link>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5" aria-live="polite">
-        {messages.length === 0 ? (
-          <p className="hint py-10 text-center">
-            {client.portalEnabled ? "Todavía no hay mensajes. Escribe el primero: le aparecerá en su portal." : "Activa su portal en la ficha del cliente para poder escribirle. Mientras, puedes guardar notas internas."}
-          </p>
-        ) : (
-          <ol className="flex flex-col gap-3">
-            {messages.map((m) => {
-              const mine = m.author !== "client";
-              const note = m.author === "note";
-              return (
-                <li key={m.id} className={`group flex max-w-[85%] flex-col gap-1 ${mine ? "items-end self-end" : "items-start self-start"}`}>
-                  <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                    {note && <Lock className="size-3" aria-hidden />}
-                    {m.author === "client" ? client.name : note ? "Nota interna" : "Tú"} · {timeFmt.format(new Date(m.createdAt))}
-                    {m.projectName ? ` · ${m.projectName}` : ""}
-                    {note && (
-                      <button type="button" className="ml-1 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:text-danger focus:opacity-100" onClick={() => void removeNote(m.id)} aria-label="Borrar nota">
-                        <Trash2 className="size-3" aria-hidden />
-                      </button>
-                    )}
-                  </span>
-                  <p
-                    className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap ${
-                      note
-                        ? "border border-dashed border-warning/60 bg-warning-soft text-fg"
-                        : mine
-                          ? "rounded-br-md bg-primary text-primary-fg"
-                          : "rounded-bl-md bg-surface-2 text-fg"
-                    }`}
-                  >
-                    {m.body}
-                  </p>
-                  {m.id === lastAdmin?.id && (
-                    <span className="flex items-center gap-1 text-[11px] text-muted">
-                      {seen ? <CheckCheck className="size-3.5" aria-hidden /> : <Check className="size-3.5" aria-hidden />}
-                      {seen ? `Visto ${timeAgo(client.messagesSeenAt!)}` : "Enviado"}
+      <div ref={scroller} onScroll={onScroll} className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain px-4 py-4 sm:px-5" aria-live="polite">
+        <div className="flex flex-col gap-3">
+          {hasMore && (
+            <p className="text-center text-xs text-muted">
+              <button type="button" className={olderError ? "underline underline-offset-2" : "hover:text-fg"} onClick={() => void loadOlder()}>
+                {olderError ? "No se pudieron cargar los anteriores. Reintentar" : "Cargar mensajes anteriores"}
+              </button>
+            </p>
+          )}
+          {messages.length === 0 ? (
+            <p className="hint py-10 text-center">
+              {client.portalEnabled ? "Todavía no hay mensajes. Escribe el primero: le aparecerá en su portal." : "Activa su portal en la ficha del cliente para poder escribirle. Mientras, puedes guardar notas internas."}
+            </p>
+          ) : (
+            <ol className="flex flex-col gap-3">
+              {messages.map((m) => {
+                const mine = m.author !== "client";
+                const note = m.author === "note";
+                return (
+                  <li key={m.id} className={`group flex max-w-[85%] flex-col gap-1 ${mine ? "items-end self-end" : "items-start self-start"}`}>
+                    <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                      {note && <Lock className="size-3" aria-hidden />}
+                      {m.author === "client" ? client.name : note ? "Nota interna" : "Tú"} · {timeFmt.format(new Date(m.createdAt))}
+                      {m.projectName ? ` · ${m.projectName}` : ""}
+                      {note && (
+                        <button type="button" className="ml-1 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:text-danger focus:opacity-100" onClick={() => void removeNote(m.id)} aria-label="Borrar nota">
+                          <Trash2 className="size-3" aria-hidden />
+                        </button>
+                      )}
                     </span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        )}
-        <div ref={end} />
+                    <p
+                      className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap ${
+                        note
+                          ? "border border-dashed border-warning/60 bg-warning-soft text-fg"
+                          : mine
+                            ? "rounded-br-md bg-primary text-primary-fg"
+                            : "rounded-bl-md bg-surface-2 text-fg"
+                      }`}
+                    >
+                      {m.body}
+                    </p>
+                    {m.id === lastAdmin?.id && (
+                      <span className="flex items-center gap-1 text-[11px] text-muted">
+                        {seen ? <CheckCheck className="size-3.5" aria-hidden /> : <Check className="size-3.5" aria-hidden />}
+                        {seen ? `Visto ${timeAgo(client.messagesSeenAt!)}` : "Enviado"}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
       </div>
 
-      <form onSubmit={send} className="flex flex-col gap-2 border-t border-line px-4 py-3 sm:px-5">
+      <form onSubmit={send} className="flex shrink-0 flex-col gap-2 border-t border-line bg-surface px-4 py-3 sm:px-5">
         {error && (
           <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-[13px] text-danger">
             {error}
           </p>
         )}
         <textarea
-          className={`input min-h-20 resize-y ${internal ? "border-dashed bg-warning-soft/40" : ""}`}
+          className={`input max-h-48 min-h-16 resize-y ${internal ? "border-dashed bg-warning-soft/40" : ""}`}
+          rows={2}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => {
@@ -290,7 +355,7 @@ function ThreadView({ thread, onBack, onSent }: { thread: Thread; onBack(): void
             <Lock className="size-3.5" aria-hidden /> Nota interna
           </label>
           {projects.length > 0 && (
-            <select className="input w-auto py-1.5 text-[13px]" value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Proyecto">
+            <select className="input w-auto min-w-0 flex-1 py-1.5 text-[13px] sm:flex-none" value={projectId} onChange={(e) => setProjectId(e.target.value)} aria-label="Proyecto">
               <option value="">General</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>

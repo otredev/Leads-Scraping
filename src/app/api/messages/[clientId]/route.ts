@@ -2,9 +2,11 @@ import { connection } from "next/server";
 import { handle, readJson } from "@/server/http";
 import { deleteNote, getThread, markRead, sendMessage } from "@/server/messages";
 
-export const GET = handle(async (_request: Request, { params }: RouteContext<"/api/messages/[clientId]">) => {
+/** Conversación: los últimos 50 mensajes (?limit=), o los anteriores a un mensaje (?before=<id>). */
+export const GET = handle(async (request: Request, { params }: RouteContext<"/api/messages/[clientId]">) => {
   await connection();
-  return Response.json(await getThread((await params).clientId));
+  const q = new URL(request.url).searchParams;
+  return Response.json(await getThread((await params).clientId, { before: q.get("before") ?? undefined, limit: Number(q.get("limit")) || undefined }));
 });
 
 /** Responder: { body, projectId? } (se publica en su portal) o nota interna: { body, internal: true }. */

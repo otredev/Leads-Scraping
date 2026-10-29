@@ -27,7 +27,7 @@ import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
 import { DocumentPage } from "./documents";
 import { LEGAL_PAGES, LegalPage, policyVersion, type LegalSlug } from "./legal";
 import { ConsentPage } from "./consent";
-import { MESSAGE_MAX_LENGTH, MessagesPage, messageMeta, type PortalMessage } from "./messages";
+import { MESSAGE_MAX_LENGTH, MESSAGES_PAGE, MessagesPage, messageMeta, type PortalMessage } from "./messages";
 
 type Env = { DB: D1Database; PORTAL_SECRET: string };
 
@@ -163,15 +163,21 @@ async function gate(c: Ctx, render: (snap: PortalSnapshot, token: string) => Res
   return render(snap, token);
 }
 
-async function loadMessages(db: D1Database, clientId: string): Promise<PortalMessage[]> {
+type MessageRow = { seq: number; id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string };
+const toMessage = (r: MessageRow): PortalMessage => ({ seq: r.seq, id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) });
+
+/** Los últimos `limit` mensajes (o los anteriores a `before`), en orden, y si hay más antiguos. */
+async function loadMessages(db: D1Database, clientId: string, { limit = MESSAGES_PAGE, before }: { limit?: number; before?: number } = {}) {
   const { results } = await db
-    .prepare("SELECT seq, id, author, body, project_name, created_at FROM messages WHERE client_id = ? ORDER BY seq DESC LIMIT 200")
-    .bind(clientId)
-    .all<{ seq: number; id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
-  return results.reverse().map((r) => ({ seq: r.seq, id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
+    .prepare(`SELECT seq, id, author, body, project_name, created_at FROM messages WHERE client_id = ?1 ${before ? "AND seq < ?3" : ""} ORDER BY seq DESC LIMIT ?2`)
+    .bind(clientId, limit + 1, ...(before ? [before] : []))
+    .all<MessageRow>();
+  return { messages: results.slice(0, limit).reverse().map(toMessage), hasMore: results.length > limit };
 }
 
-app.get("/p/:token", (c) => gate(c, async (snap, token) => c.html(<ProjectsPage snap={snap} token={token} messages={await loadMessages(c.env.DB, snap.client.id)} />)));
+app.get("/p/:token", (c) =>
+  gate(c, async (snap, token) => c.html(<ProjectsPage snap={snap} token={token} messages={(await loadMessages(c.env.DB, snap.client.id, { limit: 3 })).messages} />)),
+);
 
 /** Aceptación de las políticas. */
 app.post("/p/:token/consent", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
@@ -209,14 +215,16 @@ app.get("/p/:token/mensajes", (c) =>
         .bind(snap.client.id, new Date().toISOString())
         .run(),
     );
-    return c.html(<MessagesPage snap={snap} token={token} messages={await loadMessages(c.env.DB, snap.client.id)} error={c.req.query("error")} sent={c.req.query("ok") === "1"} />);
+    // ?todos=1: todo el historial (sin JavaScript no se pueden cargar los anteriores al subir).
+    const { messages, hasMore } = await loadMessages(c.env.DB, snap.client.id, { limit: c.req.query("todos") === "1" ? 2000 : MESSAGES_PAGE });
+    return c.html(<MessagesPage snap={snap} token={token} messages={messages} hasMore={hasMore} error={c.req.query("error")} sent={c.req.query("ok") === "1"} />);
   }),
 );
 
 app.post("/p/:token/mensajes", bodyLimit({ maxSize: 16 * 1024 }), (c) => {
   if (!sameOrigin(c)) return c.text("Origen no permitido", 403);
   return gate(c, async (snap, token) => {
-    const back = (q: string) => c.redirect(`/p/${token}/mensajes?${q}#escribir`, 303);
+    const back = (q: string) => c.redirect(`/p/${token}/mensajes?${q}#composer`, 303);
     const form = await c.req.parseBody();
     const body = typeof form.body === "string" ? form.body.replace(/\r\n/g, "\n").trim() : "";
     if (!body) return back("error=vacio");
@@ -243,16 +251,25 @@ async function gateJson(c: Ctx, run: (snap: PortalSnapshot) => Response | Promis
   return run(snap);
 }
 
-/** Mensajes con seq > after, con su línea de autor y hora ya formateada. */
+/**
+ * ?after=<seq>: mensajes nuevos (en vivo). ?before=<seq>: los 50 anteriores (al subir).
+ * Cada uno con su línea de autor y hora ya formateada.
+ */
 app.get("/p/:token/mensajes.json", (c) =>
   gateJson(c, async (snap) => {
+    const view = (list: PortalMessage[]) => list.map((m) => ({ seq: m.seq, author: m.author, body: m.body, meta: messageMeta(m, snap) }));
+    const before = Number(c.req.query("before") ?? 0) || 0;
+    if (before > 0) {
+      const { messages, hasMore } = await loadMessages(c.env.DB, snap.client.id, { before });
+      return c.json({ messages: view(messages), hasMore });
+    }
     const after = Number(c.req.query("after") ?? 0) || 0;
     const { results } = await c.env.DB.prepare(
       "SELECT seq, id, author, body, project_name, created_at FROM messages WHERE client_id = ? AND seq > ? ORDER BY seq LIMIT 100",
     )
       .bind(snap.client.id, after)
-      .all<{ seq: number; id: string; author: "client" | "admin"; body: string; project_name: string | null; created_at: string }>();
-    const messages: PortalMessage[] = results.map((r) => ({ seq: r.seq, id: r.id, author: r.author, body: r.body, createdAt: r.created_at, ...(r.project_name ? { projectName: r.project_name } : {}) }));
+      .all<MessageRow>();
+    const messages = results.map(toMessage);
     // Si le llega una respuesta tuya con la página abierta, cuenta como vista.
     if (messages.some((m) => m.author === "admin"))
       c.executionCtx.waitUntil(
@@ -260,7 +277,7 @@ app.get("/p/:token/mensajes.json", (c) =>
           .bind(snap.client.id, new Date().toISOString())
           .run(),
       );
-    return c.json({ messages: messages.map((m) => ({ seq: m.seq, author: m.author, body: m.body, meta: messageMeta(m, snap) })) });
+    return c.json({ messages: view(messages) });
   }),
 );
 
