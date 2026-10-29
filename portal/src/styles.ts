@@ -33,6 +33,7 @@ const STYLES = `
 /* ── Base ── */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+body { overflow-x: clip; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14.5px; line-height: 1.5; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 a { color: inherit; }
 h1, h2, h3 { margin: 0; color: var(--fg); }
@@ -51,7 +52,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ── Estructura ── */
 .wrap { max-width: 800px; margin: 0 auto; padding: 0 16px 48px; }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 18px 0; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+/* Cabecera fija: siempre visible al bajar, con fondo translúcido (de borde a borde) y sombra al desplazarse. */
+.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin: 0 -16px 24px; padding: 18px 16px; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 82%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
+  transition: padding .2s, box-shadow .2s; }
+@supports not (backdrop-filter: blur(1px)) { .top { background: var(--bg); } }
+.top.scrolled { padding-top: 12px; padding-bottom: 12px; box-shadow: 0 6px 20px -12px rgb(0 0 0 / 0.25); }
+@media (min-width: 832px) {
+  /* Fondo de lado a lado de la ventana también en pantallas anchas. */
+  .top { margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); padding-left: calc(50vw - 50% + 16px); padding-right: calc(50vw - 50% + 16px); }
+}
+:target, [id] { scroll-margin-top: 84px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
 a.brand { text-decoration: none; border-radius: 10px; }
 a.brand:hover .logo { background: var(--primary-hover); }
@@ -262,7 +274,8 @@ summary:hover { color: var(--fg); }
 
 @media (max-width: 520px) {
   h1 { font-size: 24px; }
-  .top { padding: 14px 0; margin-bottom: 18px; }
+  .top { padding: 14px 16px; margin-bottom: 18px; }
+  .top.scrolled { padding-top: 10px; padding-bottom: 10px; }
   .card { padding: 16px; }
   .consent, .legal { padding: 20px; margin-top: 0; }
   .msg { max-width: 90%; }

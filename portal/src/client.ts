@@ -10,6 +10,14 @@ export const CLIENT_JS = `"use strict";
   const match = location.pathname.match(/^\\/p\\/([A-Za-z0-9_-]{20,100})(?:\\/|$)/);
   if (!match) return;
   const base = "/p/" + match[1];
+
+  // Cabecera fija: más compacta y con sombra en cuanto se baja.
+  const top = document.querySelector(".top");
+  if (top) {
+    const mark = () => top.classList.toggle("scrolled", scrollY > 8);
+    addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
   const sameOrigin = { credentials: "same-origin", headers: { "content-type": "application/json" } };
 
   // ── Mensajes en vivo ──
