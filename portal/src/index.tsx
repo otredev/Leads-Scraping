@@ -568,7 +568,7 @@ app.onError((err, c) => {
   // Tabla que falta: se actualizó el código sin aplicar las migraciones de la base de datos.
   const missingTable = /no such table/i.test(String((err as Error)?.message ?? err));
   const message = missingTable
-    ? "Faltan tablas en la base de datos del portal: en la carpeta portal ejecuta «npm run db:migrate:remote» y vuelve a publicar"
+    ? "Faltan tablas en la base de datos del portal: en la carpeta portal ejecuta «npm run deploy» (aplica las migraciones y publica)"
     : "Error del portal";
   return c.req.path.startsWith("/api/") ? c.json({ error: message }, 500) : c.html(<NotFoundPage error />, 500);
 });

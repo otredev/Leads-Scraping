@@ -44,7 +44,9 @@ Para usar tu propio dominio (p. ej. `clientes.tudominio.com`), añádelo en el p
 
 ## Actualizar el portal
 
-Cuando cambie el código del portal: `cd portal && npm run deploy`. Si hay migraciones nuevas en `migrations/`, antes `npm run db:migrate:remote`.
+Cuando cambie el código del portal: `cd portal && npm run deploy`. Aplica antes las migraciones nuevas de `migrations/` en la base de datos de Cloudflare y, si alguna falla, no publica (así el código nuevo nunca queda sin sus tablas). Para publicar sin tocar la base de datos: `npm run deploy:only`.
+
+> Si publicas desde GitHub con **Workers Builds** (Cloudflare → Worker → Settings → Build), pon como comando de despliegue `npm run deploy` en vez de `npx wrangler deploy`.
 
 ## Probar en local
 
@@ -65,14 +67,14 @@ Y en el `.env.local` de la app: `PORTAL_URL=http://localhost:8787` con el mismo 
 
 Las propuestas, contratos y facturas que envías desde la app aparecen en el portal del cliente (`/p/<token>/d/<documento>`). El cliente puede **aceptar una propuesta o firmar un contrato** con su nombre y una casilla; se guarda en la tabla `acceptances` (migración `0003_acceptances.sql`) con la fecha, la IP y el navegador, y tu app la recoge por `GET /api/acceptances`.
 
-Si actualizas un portal ya desplegado: `npm run db:migrate:remote` y `npm run deploy`.
+Si actualizas un portal ya desplegado: `npm run deploy` (aplica la migración y publica).
 
 ## Condiciones y mensajes
 
 - **Aceptación de condiciones**: antes de ver su portal, el cliente acepta el aviso legal y la política de privacidad (nombre + casilla). Se guarda en la tabla `consents` con la fecha, la IP, el navegador y la versión de los textos (cambia si cambias tus datos legales, y entonces se pide de nuevo). Las páginas legales se pueden leer antes, en `/p/<token>/legal/<página>`.
 - **Mensajes**: `/p/<token>/mensajes`. El cliente escribe (máximo 30 por hora) y ve tus respuestas. Tabla `messages`; `message_seen` guarda cuándo los vio.
 - Tu app recoge todo con `GET /api/inbox?after=<seq>` y responde con `POST /api/portals/<cliente>/messages`.
-- Migración `0004_consents_messages.sql`. Si actualizas un portal ya desplegado: `npm run db:migrate:remote` y `npm run deploy`.
+- Migración `0004_consents_messages.sql`. Si actualizas un portal ya desplegado: `npm run deploy` (aplica la migración y publica).
 
 ## Seguridad
 

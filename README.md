@@ -38,6 +38,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
 4. [Claude (MCP)](#4-claude-mcp)
 5. [Arquitectura](#5-arquitectura)
 6. [Cómo ampliar](#6-cómo-ampliar)
+   - [Tests](#tests)
 7. [Despliegue](#7-despliegue)
 8. [Hoja de ruta](#8-hoja-de-ruta)
 9. [Aviso](#9-aviso)
@@ -443,6 +444,26 @@ export const providers = [gosom, demo, miProveedor];
 - **Almacenamiento:** la copia de seguridad y la importación funcionan entre cualquier implementación.
 
 </details>
+
+### Tests
+
+```bash
+npm test             # todos los tests (Vitest), en unos segundos
+npm run test:watch   # se repiten al guardar
+npm run check        # lint + tipos + tests (lo mismo que comprueba GitHub)
+```
+
+Los tests están en `tests/` y usan una carpeta de datos temporal: nunca tocan tus datos. Cubren lo que más daño haría si se rompe:
+
+| Fichero | Qué comprueba |
+|---|---|
+| `auth.test.ts` | Registro, inicio de sesión, límite de intentos, sesiones, cambio de contraseña, recuperación con código, eliminar la cuenta, API protegida (401 / CSRF) y que **cada cuenta solo ve sus datos** |
+| `documents.test.ts` | Huella VeriFactu con el ejemplo oficial de la AEAT, QR, totales e IVA/IRPF, numeración correlativa, cadena íntegra, facturas inalterables, detección de manipulaciones y rectificativas |
+| `finance.test.ts` | Gastos recurrentes y un informe de rentabilidad calculado a mano (reparto de gastos generales, horas, captación) |
+| `portal.test.ts` | Que el portal del cliente **solo publica lo visible**: nada de notas internas, horas, borradores ni datos de otros clientes |
+| `leads.test.ts` | Deduplicación de negocios |
+
+**GitHub Actions** (`.github/workflows/ci.yml`) ejecuta en cada push y pull request: lint, tipos, tests y build de la app, y los tipos del portal. Si algo falla, lo verás en la pestaña *Actions* del repositorio y en el commit (✗ rojo).
 
 ---
 

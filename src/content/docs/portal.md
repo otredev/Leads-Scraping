@@ -37,7 +37,7 @@ En la ficha del cliente, tarjeta **Portal del cliente**:
 - **Renovar enlace**: crea uno nuevo y el anterior deja de funcionar.
 - **Desactivar portal**: el enlace deja de funcionar.
 
-Si ya tenías el portal desplegado, cada vez que haya migraciones nuevas (documentos, mensajes…) aplícalas y vuelve a publicarlo: `cd portal && npm run db:migrate:remote && npm run deploy`.
+Para actualizar el portal: `cd portal && npm run deploy`. Aplica solo las migraciones nuevas de la base de datos (documentos, mensajes, avisos…) y después publica; si una migración falla, no publica.
 
 Pulsar el **nombre de tu negocio** arriba a la izquierda lleva siempre a la página principal del cliente, también desde las páginas legales.
 

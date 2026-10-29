@@ -50,8 +50,8 @@ async function portalDiagnosis(): Promise<string | undefined> {
     if (!res.ok) return undefined;
     const h = (await res.json()) as { build?: number; missingTables?: string[] };
     if (h.missingTables?.length)
-      return `Faltan tablas en la base de datos del portal (${h.missingTables.join(", ")}): en la carpeta portal ejecuta «npm run db:migrate:remote» y vuelve a publicar.`;
-    if ((h.build ?? 0) < PORTAL_BUILD) return "El portal publicado es una versión anterior: en la carpeta portal ejecuta «npm run db:migrate:remote» y «npm run deploy».";
+      return `Faltan tablas en la base de datos del portal (${h.missingTables.join(", ")}): en la carpeta portal ejecuta «npm run deploy» (aplica las migraciones y publica).`;
+    if ((h.build ?? 0) < PORTAL_BUILD) return "El portal publicado es una versión anterior: en la carpeta portal ejecuta «npm run deploy».";
   } catch {
     /* sin conexión: ya lo dice el error original */
   }

@@ -81,6 +81,8 @@ export async function notifyClient(clientId: string, message: ClientPush) {
 export function notifyClientSoon(clientId: string, message: ClientPush, { publishFirst = false } = {}) {
   void (async () => {
     try {
+      // Sin portal no hay nada que publicar ni a quién avisar.
+      if (!(await getStore().getClient(clientId))?.portal) return;
       if (publishFirst) {
         const { publishClient } = await import("./portal");
         await publishClient(clientId);

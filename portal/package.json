@@ -8,7 +8,8 @@
     "dev": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply leads-portal --local",
     "db:migrate:remote": "wrangler d1 migrations apply leads-portal --remote",
-    "deploy": "wrangler deploy",
+    "deploy": "npm run db:migrate:remote && wrangler deploy",
+    "deploy:only": "wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

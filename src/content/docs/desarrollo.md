@@ -33,6 +33,13 @@ Todo es modular: proveedores de scraping, fuentes, exportadores, almacenamiento,
 
 Crea el fichero, impórtalo en `src/modules/index.ts` y añádelo a su lista. El README tiene ejemplos completos de cada uno.
 
+## Tests
+
+- `npm test` ejecuta los tests automáticos (carpeta `tests/`, con Vitest). Usan una carpeta de datos temporal, así que no tocan tus datos.
+- `npm run check` hace lo mismo que GitHub en cada push: lint, tipos y tests.
+- Comprueban lo más delicado: cuentas y separación de datos, facturas (huella VeriFactu, numeración, cadena), finanzas y lo que se publica en el portal.
+- Si cambias algo de eso, añade o ajusta el test correspondiente.
+
 ## Editar esta ayuda
 
 Cada guía es un fichero `.md` en `src/content/docs/` con una cabecera:
