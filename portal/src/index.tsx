@@ -18,7 +18,8 @@ import { secureHeaders } from "hono/secure-headers";
 import { bodyLimit } from "hono/body-limit";
 import type { Context } from "hono";
 import type { PortalSite, PortalSnapshot } from "../../src/core/portal";
-import { CSS } from "./styles";
+import { CSS, CSS_VERSION } from "./styles";
+import { FONT_WOFF2 } from "./font";
 import { HomePage, NotFoundPage, ProjectPage, ProjectsPage } from "./pages";
 import { DocumentPage } from "./documents";
 import { LEGAL_PAGES, LegalPage, policyVersion, type LegalSlug } from "./legal";
@@ -39,6 +40,7 @@ app.use(
       defaultSrc: ["'none'"],
       styleSrc: ["'self'"],
       imgSrc: ["'self'", "data:"],
+      fontSrc: ["'self'"],
       baseUri: ["'none'"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
@@ -51,9 +53,15 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /\n"));
+// La hoja lleva ?v=<huella>: al cambiar los estilos, el navegador pide la nueva en vez de usar la guardada.
 app.get("/portal.css", (c) => {
-  c.header("Cache-Control", "public, max-age=3600");
+  c.header("Cache-Control", c.req.query("v") === CSS_VERSION ? "public, max-age=31536000, immutable" : "no-cache");
   return c.body(CSS, 200, { "Content-Type": "text/css; charset=utf-8" });
+});
+const fontBytes = Uint8Array.from(atob(FONT_WOFF2), (ch) => ch.charCodeAt(0));
+app.get("/font.woff2", (c) => {
+  c.header("Cache-Control", "public, max-age=31536000, immutable");
+  return c.body(fontBytes, 200, { "Content-Type": "font/woff2" });
 });
 app.get("/", (c) => c.html(<HomePage />));
 
@@ -160,9 +168,9 @@ app.post("/p/:token/consent", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
   if (!snap) return c.html(<NotFoundPage />, 404);
   const form = await c.req.parseBody();
   const next = typeof form.next === "string" && form.next.startsWith(`/p/${token}`) ? form.next : `/p/${token}`;
-  const name = cleanName(form.name);
+  // Sin pedir el nombre: el enlace es personal, así que se registra a nombre del contacto del cliente.
+  const name = cleanName(snap.client.contactName ?? snap.client.name) || snap.client.name;
   const back = (q: string) => c.redirect(`${next}?consent=${q}`, 303);
-  if (name.length < 3) return back("nombre");
   if (form.agree !== "1") return back("casilla");
   const { version } = await consentState(c, snap.client.id);
   await c.env.DB.prepare("INSERT OR IGNORE INTO consents (client_id, version, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)")

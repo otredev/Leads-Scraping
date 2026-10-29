@@ -7,7 +7,6 @@ import { Brand, Layout, LegalLinks } from "./pages";
  */
 
 const ERRORS: Record<string, string> = {
-  nombre: "Escribe tu nombre completo.",
   casilla: "Marca la casilla para continuar.",
 };
 
@@ -45,10 +44,6 @@ export function ConsentPage({ snap, token, next, error, updated }: { snap: Porta
           )}
           <form method="post" action={`/p/${token}/consent`} class="accept">
             <input type="hidden" name="next" value={next} />
-            <label>
-              <span>Nombre y apellidos</span>
-              <input name="name" required minlength={3} maxlength={120} autocomplete="name" />
-            </label>
             <label class="check">
               <input type="checkbox" name="agree" value="1" required />
               <span>He leído y acepto el aviso legal y la política de privacidad de {brand}.</span>
@@ -57,7 +52,7 @@ export function ConsentPage({ snap, token, next, error, updated }: { snap: Porta
               Aceptar y entrar
             </button>
           </form>
-          <p class="muted small">Guardaremos tu nombre, la fecha y hora y la dirección IP como registro de esta aceptación.</p>
+          <p class="muted small">Guardaremos la fecha y hora y la dirección IP como registro de esta aceptación.</p>
         </section>
       </main>
       <footer class="foot">

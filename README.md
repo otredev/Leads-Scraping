@@ -236,7 +236,7 @@ Una web aparte en Cloudflare (gratis) donde cada cliente, con su **enlace privad
 - **Se actualiza solo** unos segundos después de cada cambio (mientras la app esté encendida).
 - Puedes ver cuándo lo abrió, **renovar** el enlace o **desactivarlo**.
 - **Páginas legales** (aviso legal, privacidad y cookies) generadas con tus datos y enlazadas en el pie. Son plantillas orientativas para España: revísalas con un profesional.
-- **Aceptación de condiciones**: antes de ver nada, el cliente acepta el aviso legal y la privacidad (nombre + casilla; se guardan fecha, IP y versión de los textos). Si cambias tus datos legales, se le vuelve a pedir.
+- **Aceptación de condiciones**: antes de ver nada, el cliente acepta el aviso legal y la privacidad con una casilla (se guardan fecha, IP y versión de los textos). Si cambias tus datos legales, se le vuelve a pedir.
 - Pulsar el nombre de tu negocio lleva siempre a la página principal del cliente.
 - Tu CRM, notas y horas **nunca salen de tu equipo**: solo se envía lo marcado como visible.
 

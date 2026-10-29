@@ -2,6 +2,7 @@ import type { Child } from "hono/jsx";
 import type { PortalItem, PortalProject, PortalSnapshot } from "../../src/core/portal";
 import { DocumentsList } from "./documents";
 import { MessagesCard, type PortalMessage } from "./messages";
+import { CSS_VERSION } from "./styles";
 
 // ── Formatos (en la zona horaria de tu app) ──
 
@@ -59,7 +60,8 @@ export function Layout({ title, children, brand }: { title: string; children: Ch
         <meta name="referrer" content="no-referrer" />
         <meta name="color-scheme" content="light dark" />
         <title>{brand ? `${title} · ${brand}` : title}</title>
-        <link rel="stylesheet" href="/portal.css" />
+        <link rel="preload" href="/font.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+        <link rel="stylesheet" href={`/portal.css?v=${CSS_VERSION}`} />
       </head>
       <body>
         <div class="wrap">{children}</div>

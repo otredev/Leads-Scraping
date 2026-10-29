@@ -4,7 +4,7 @@
 // y pega aquí el "database_id" que te devuelve.
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "leads-portal",
+	"name": "portal",
 	"main": "src/index.tsx",
 	"compatibility_date": "2026-10-01",
 	"observability": {

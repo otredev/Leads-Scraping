@@ -26,7 +26,7 @@ La app busca mensajes nuevos **cada minuto** (y cada 20 segundos mientras tienes
 
 ## Aceptación de las condiciones
 
-La primera vez que el cliente abre su portal, antes de ver nada, tiene que **aceptar el aviso legal y la política de privacidad** escribiendo su nombre y marcando una casilla. Se guardan su nombre, la fecha y hora, la IP y el navegador, y la versión de los textos aceptados.
+La primera vez que el cliente abre su portal, antes de ver nada, tiene que **aceptar el aviso legal y la política de privacidad** marcando una casilla. Se guardan la fecha y hora, la IP y el navegador y la versión de los textos aceptados, a nombre del contacto del cliente (el enlace es personal).
 
 - En Mensajes y en la ficha del cliente verás **Condiciones aceptadas** (pasa el ratón para ver quién, cuándo y desde qué IP) o **Aún no ha aceptado las condiciones**.
 - Si cambias tus **datos legales** (titular, NIF, domicilio) o tu nombre comercial o email, los textos cambian y se le **vuelve a pedir** la aceptación la próxima vez que entre.
