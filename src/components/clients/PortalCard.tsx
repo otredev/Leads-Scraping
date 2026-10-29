@@ -101,7 +101,7 @@ export function PortalCard({ client }: { client: Client }) {
           Para compartir el avance con el cliente, despliega el portal en Cloudflare y añade <code className="text-[12px]">PORTAL_URL</code> y{" "}
           <code className="text-[12px]">PORTAL_SECRET</code> a <code className="text-[12px]">.env.local</code>. Los pasos están en el README (sección
           &ldquo;Portal del cliente&rdquo;) y en{" "}
-          <Link href="/ajustes" className="underline underline-offset-2">
+          <Link href="/ajustes?seccion=portal" className="underline underline-offset-2">
             Ajustes
           </Link>
           .

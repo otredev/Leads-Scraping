@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, FileSignature, FileText, History, Plus, Receipt, Search, Settings2, ShieldAlert, ShieldCheck, Trash2, Pencil } from "lucide-react";
 import { DOC_TYPES, STATUSES_BY_TYPE, docTypeLabel, formatAmount, statusLabel, type DocTemplate, type DocType } from "@/core/documents";
 import type { DocEvent, DocumentView } from "@/server/documents";
@@ -12,7 +13,10 @@ import { DocStatusBadge } from "../documents/parts";
 import { DocumentSettingsDialog, NewDocumentDialog, TemplateForm } from "../documents/dialogs";
 
 type Tab = DocType | "templates";
-const TABS: { id: Tab; label: string }[] = [...DOC_TYPES.map((t) => ({ id: t.id as Tab, label: t.plural })), { id: "templates", label: "Plantillas" }];
+const TABS: { id: Tab; label: string; slug: string }[] = [
+  ...DOC_TYPES.map((t) => ({ id: t.id as Tab, label: t.plural, slug: t.plural.toLowerCase() })),
+  { id: "templates", label: "Plantillas", slug: "plantillas" },
+];
 
 const NEW_LABEL: Record<Tab, string> = { proposal: "Nueva propuesta", contract: "Nuevo contrato", invoice: "Nueva factura", templates: "Nueva plantilla" };
 const dateFmt = new Intl.DateTimeFormat("es", { day: "numeric", month: "short", year: "numeric" });
@@ -21,7 +25,12 @@ const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 /** Propuestas, contratos y facturas, con sus plantillas. */
 export function Documents() {
-  const [tab, setTab] = useState<Tab>("proposal");
+  // La pestaña va en la dirección (?tipo=facturas) para poder enlazarla desde el buscador.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab: Tab = TABS.find((t) => t.slug === params.get("tipo"))?.id ?? "proposal";
+  const setTab = (id: Tab) => router.replace(`${pathname}?tipo=${TABS.find((t) => t.id === id)!.slug}`, { scroll: false });
   const [docs, setDocs] = useState<DocumentView[]>();
   const [templates, setTemplates] = useState<DocTemplate[]>();
   const [today, setToday] = useState("");

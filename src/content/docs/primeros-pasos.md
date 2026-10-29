@@ -33,7 +33,7 @@ En la barra lateral, abajo, verás si **gosom** y la **base de datos** están co
 
 1. En `.env.local` pon tu cadena de conexión en `MONGODB_URI`. Si la contraseña tiene caracteres especiales (`@ : / ? #`), codifícalos (`@` → `%40`).
 2. En Atlas, **Network Access**, añade tu IP.
-3. Reinicia la app. En [Ajustes](/ajustes) verás "MongoDB · Conectada".
+3. Reinicia la app. En [Ajustes → General](/ajustes?seccion=general) verás "MongoDB · Conectada".
 
 Si antes usabas ficheros locales, en Ajustes tienes **Importar datos locales**.
 

@@ -5,6 +5,16 @@ import "./globals.css";
 import { AppShell } from "@/components/shell/AppShell";
 import { DataProvider } from "@/components/data/DataProvider";
 import { themeInitScript } from "@/lib/theme";
+import { listDocs } from "@/server/docs";
+import type { SearchEntry } from "@/components/shell/nav";
+
+/** Guías y apartados de la Ayuda para el buscador del menú (se leen al compilar). */
+function helpEntries(): SearchEntry[] {
+  return listDocs().flatMap((d) => [
+    { title: d.title, context: "Ayuda", href: `/ayuda/${d.slug}`, keywords: d.description, kind: "help" as const },
+    ...d.headings.map((h) => ({ title: h.text, context: `Ayuda · ${d.title}`, href: `/ayuda/${d.slug}#${h.id}`, keywords: d.title, kind: "help" as const })),
+  ]);
+}
 
 export const metadata: Metadata = {
   title: "Leads Scraping",
@@ -33,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         <DataProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell help={helpEntries()}>{children}</AppShell>
         </DataProvider>
       </body>
     </html>

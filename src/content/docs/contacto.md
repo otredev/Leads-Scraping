@@ -18,7 +18,7 @@ Cada acción queda en el **historial de contacto** del lead y actualiza la colum
 
 ## Plantillas
 
-Se editan en [Ajustes → Plantillas de mensaje](/ajustes), con vista previa. Pueden ser de WhatsApp o de email (con asunto) y usar estas variables:
+Se editan en [Ajustes → CRM → Plantillas de mensaje](/ajustes?seccion=crm#plantillas), con vista previa. Pueden ser de WhatsApp o de email (con asunto) y usar estas variables:
 
 | Variable | Se sustituye por |
 |---|---|

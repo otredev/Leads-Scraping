@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { BookOpen, Briefcase, CalendarCheck, CalendarDays, LayoutDashboard, ListFilter, Menu, Search, Settings, Trash2, Users, X, ChartNoAxesCombined, FileText, MessageSquare } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { NAV_GROUPS, type SearchEntry } from "./nav";
+import { GlobalSearch } from "./GlobalSearch";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
@@ -11,21 +13,6 @@ import { ThemeButton, ThemeSwitch } from "./ThemeToggle";
 import { Skeleton } from "../ui";
 import { registerServiceWorker } from "@/lib/pwa";
 
-const NAV = [
-  { href: "/", label: "Panel", Icon: LayoutDashboard },
-  { href: "/busquedas", label: "Búsquedas", Icon: Search },
-  { href: "/resultados", label: "Resultados", Icon: ListFilter },
-  { href: "/leads", label: "Leads", Icon: Users },
-  { href: "/clientes", label: "Clientes", Icon: Briefcase },
-  { href: "/finanzas", label: "Finanzas", Icon: ChartNoAxesCombined },
-  { href: "/documentos", label: "Documentos", Icon: FileText },
-  { href: "/mensajes", label: "Mensajes", Icon: MessageSquare },
-  { href: "/tareas", label: "Tareas", Icon: CalendarCheck },
-  { href: "/calendario", label: "Calendario", Icon: CalendarDays },
-  { href: "/papelera", label: "Papelera", Icon: Trash2 },
-  { href: "/ajustes", label: "Ajustes", Icon: Settings },
-  { href: "/ayuda", label: "Ayuda", Icon: BookOpen },
-];
 
 function Logo() {
   return (
@@ -86,44 +73,55 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
   const active = searches.filter((s) => s.status === "running" || s.status === "queued").length;
   const unreadMessages = useUnreadMessages(pathname);
   return (
-    <ul className="flex flex-col gap-1">
-      {NAV.map(({ href, label, Icon }) => {
-        const current = href === "/" ? pathname === "/" : pathname.startsWith(href);
-        return (
-          <li key={href}>
-            <Link
-              href={href}
-              onClick={onNavigate}
-              aria-current={current ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                current ? "bg-primary-soft text-primary" : "text-fg-2 hover:bg-surface-2 hover:text-fg"
-              }`}
-            >
-              <Icon className="size-[18px]" aria-hidden />
-              <span className="flex-1">{label}</span>
-              {href === "/tareas" && pending > 0 && (
-                <span className="badge bg-primary text-primary-fg" title={`${pending} vencidas o para hoy`}>
-                  {pending}
-                </span>
-              )}
-              {href === "/mensajes" && unreadMessages > 0 && (
-                <span className="badge bg-primary text-primary-fg" title={`${unreadMessages} sin leer`}>
-                  {unreadMessages}
-                </span>
-              )}
-              {href === "/leads" && savedKeys.size > 0 && (
-                <span className="text-xs tabular-nums text-muted">{savedKeys.size}</span>
-              )}
-              {href === "/busquedas" && active > 0 && (
-                <span className="badge bg-primary text-primary-fg" title={`${active} en curso`}>
-                  {active}
-                </span>
-              )}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="flex flex-col gap-4">
+      {NAV_GROUPS.map((group, gi) => (
+        <div key={group.label ?? gi} role="group" aria-labelledby={group.label ? `nav-${gi}` : undefined}>
+          {group.label && (
+            <p id={`nav-${gi}`} className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted uppercase">
+              {group.label}
+            </p>
+          )}
+          <ul className="flex flex-col gap-0.5">
+            {group.items.map(({ href, label, Icon }) => {
+              const current = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    onClick={onNavigate}
+                    aria-current={current ? "page" : undefined}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                      current ? "bg-primary-soft text-primary" : "text-fg-2 hover:bg-surface-2 hover:text-fg"
+                    }`}
+                  >
+                    <Icon className="size-[18px]" aria-hidden />
+                    <span className="flex-1">{label}</span>
+                    {href === "/tareas" && pending > 0 && (
+                      <span className="badge bg-primary text-primary-fg" title={`${pending} vencidas o para hoy`}>
+                        {pending}
+                      </span>
+                    )}
+                    {href === "/mensajes" && unreadMessages > 0 && (
+                      <span className="badge bg-primary text-primary-fg" title={`${unreadMessages} sin leer`}>
+                        {unreadMessages}
+                      </span>
+                    )}
+                    {href === "/leads" && savedKeys.size > 0 && (
+                      <span className="text-xs tabular-nums text-muted">{savedKeys.size}</span>
+                    )}
+                    {href === "/busquedas" && active > 0 && (
+                      <span className="badge bg-primary text-primary-fg" title={`${active} en curso`}>
+                        {active}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -172,7 +170,7 @@ function ErrorBanner() {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, help = [] }: { children: React.ReactNode; help?: SearchEntry[] }) {
   const [open, setOpen] = useState(false);
   useEffect(() => registerServiceWorker(), []);
 
@@ -183,10 +181,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="px-2">
           <Logo />
         </div>
-        <nav aria-label="Principal" className="mt-8 flex-1">
+        <div className="mt-5">
+          <GlobalSearch help={help} shortcut />
+        </div>
+        <nav aria-label="Principal" className="-mx-1 mt-4 flex-1 overflow-y-auto px-1 pb-2">
           <NavLinks />
         </nav>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 border-t border-line pt-3">
           <ConnectionStatus />
           <ThemeSwitch />
         </div>
@@ -214,7 +215,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <X className="size-5" aria-hidden />
               </button>
             </div>
-            <nav aria-label="Principal" className="mt-8 flex-1">
+            <div className="mt-5">
+              <GlobalSearch help={help} onNavigate={() => setOpen(false)} />
+            </div>
+            <nav aria-label="Principal" className="-mx-1 mt-4 flex-1 overflow-y-auto px-1 pb-2">
               <NavLinks onNavigate={() => setOpen(false)} />
             </nav>
             <div className="flex flex-col gap-3">

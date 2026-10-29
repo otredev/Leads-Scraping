@@ -10,7 +10,7 @@ En [Documentos](/documentos) preparas las **propuestas**, los **contratos** y la
 
 ## Antes de empezar
 
-1. Rellena **tus datos legales** (titular, NIF, domicilio) en [Ajustes → Portal del cliente](/ajustes). Salen en todos los documentos.
+1. Rellena **tus datos legales** (titular, NIF, domicilio) en [Ajustes → Portal del cliente](/ajustes?seccion=portal#datos-legales). Salen en todos los documentos.
 2. En **Documentos → Ajustes**: IVA por defecto, retención de IRPF si te aplica, días de vencimiento, tu **IBAN** y el pie de factura.
 3. En la ficha de cada cliente, pon su **NIF/CIF**, su dirección completa y, si es una empresa, su razón social. Sin NIF no se puede emitir una factura.
 

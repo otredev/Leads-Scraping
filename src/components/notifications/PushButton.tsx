@@ -25,7 +25,7 @@ export function PushButton() {
 
   if (push.state === "on") {
     return (
-      <Link href="/ajustes" className="badge border border-line text-fg-2" title="Gestiona los dispositivos en Ajustes">
+      <Link href="/ajustes?seccion=notificaciones#push" className="badge border border-line text-fg-2" title="Gestiona los dispositivos en Ajustes">
         <Bell className="size-3.5" aria-hidden /> Notificaciones push activadas
       </Link>
     );

@@ -18,7 +18,7 @@ La app incluye un servidor MCP en `http://localhost:3000/api/mcp`. Con él, Clau
 - "Prepara una propuesta para la Clínica Sonrisa con la plantilla de proyecto." (Crea el borrador; tú lo revisas y lo envías.)
 - "¿Qué clientes me han escrito y no he leído?" · "Apunta una nota en la conversación de Óptica Norte: quiere presupuesto de SEO."
 
-Los comandos para conectarlo (Claude Code y Claude Desktop) están en [Ajustes → Claude (MCP)](/ajustes). La app tiene que estar abierta.
+Los comandos para conectarlo (Claude Code y Claude Desktop) están en [Ajustes → Integraciones](/ajustes?seccion=integraciones). La app tiene que estar abierta.
 
 **Seguridad:** sin `MCP_TOKEN`, solo acepta conexiones desde tu ordenador. Claude nunca envía mensajes por su cuenta: los prepara y respeta la lista "no contactar".
 

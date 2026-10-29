@@ -29,7 +29,7 @@ Al pulsar un lead se abre su ficha con:
 
 ## Etapas, etiquetas y colores
 
-- **Etapas**: por defecto Desinteresados, Leads, Interesados y Clientes. Puedes renombrarlas, reordenarlas y crear más en [Ajustes](/ajustes).
+- **Etapas**: por defecto Desinteresados, Leads, Interesados y Clientes. Puedes renombrarlas, reordenarlas y crear más en [Ajustes → CRM](/ajustes?seccion=crm).
 - **Etiquetas**: tuyas, con color. Créalas en Ajustes o al vuelo desde la ficha.
 - **Etiquetas automáticas**: "Sin web", "Sin contacto" y "Valoración baja" se calculan solas. El umbral de valoración baja se cambia en Ajustes.
 - **Color**: un color por lead para destacarlo.

@@ -258,8 +258,10 @@ Actívalas en **Ajustes → Notificaciones push** en cada dispositivo. El servid
 
 ### Ajustes, copias e instalación
 
+- **Menú por categorías** (Prospección, Clientes, Gestión, Agenda, Sistema) y **buscador universal** arriba del menú (**Ctrl + K**): encuentra páginas, pestañas, ajustes concretos (*IBAN*, *etiquetas*, *push*…) y apartados de la Ayuda.
+- **Ajustes por categorías**: General, CRM, Portal del cliente, Documentos y finanzas, Notificaciones y app, Integraciones y Módulos. Cada una tiene su dirección (`/ajustes?seccion=crm`).
 - **Copia de seguridad:** descarga un JSON con todo; al restaurar solo se añade lo que falta. Sirve para migrar entre MongoDB y ficheros locales.
-- **Instalar como app (PWA):** icono de instalar en Chrome o Edge, o Ajustes → Instalar la app.
+- **Instalar como app (PWA):** icono de instalar en Chrome o Edge, o Ajustes → Notificaciones y app.
 - **Tema** claro, oscuro o del sistema. Los colores están en variables al principio de `src/app/globals.css`.
 - **Ayuda:** las guías son Markdown en `src/content/docs/`. Crea un `.md` (con `title`, `description` y `order`) y aparece solo en `/ayuda/<nombre>`.
 

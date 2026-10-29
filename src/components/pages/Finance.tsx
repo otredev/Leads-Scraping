@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Clock, Plus, Settings2, TrendingUp, Wallet, Receipt } from "lucide-react";
 import type { ExpenseView, FinanceReport } from "@/core/finance";
 import { api, useData } from "../data/DataProvider";
@@ -20,10 +21,10 @@ const PERIODS = [
 type PeriodId = (typeof PERIODS)[number]["id"];
 
 const TABS = [
-  { id: "summary", label: "Resumen" },
-  { id: "clients", label: "Clientes" },
-  { id: "expenses", label: "Gastos" },
-  { id: "investment", label: "Inversión" },
+  { id: "summary", label: "Resumen", slug: "resumen" },
+  { id: "clients", label: "Clientes", slug: "clientes" },
+  { id: "expenses", label: "Gastos", slug: "gastos" },
+  { id: "investment", label: "Inversión", slug: "inversion" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -56,7 +57,12 @@ function periodQuery(id: PeriodId) {
 export function Finance() {
   const { settings } = useData();
   const [period, setPeriod] = useState<PeriodId>("12m");
-  const [tab, setTab] = useState<TabId>("summary");
+  // La pestaña va en la dirección (?vista=gastos) para poder enlazarla desde el buscador.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab: TabId = TABS.find((t) => t.slug === params.get("vista"))?.id ?? "summary";
+  const setTab = (id: TabId) => router.replace(`${pathname}?vista=${TABS.find((t) => t.id === id)!.slug}`, { scroll: false });
   const [report, setReport] = useState<FinanceReport>();
   const [expenses, setExpenses] = useState<ExpenseView[]>([]);
   const [error, setError] = useState<string>();

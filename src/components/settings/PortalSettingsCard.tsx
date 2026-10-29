@@ -81,7 +81,7 @@ export function PortalSettingsCard({ settings }: { settings: CrmSettings }) {
             </Field>
           </div>
 
-          <div className="flex flex-col gap-1 border-t border-line pt-4">
+          <div id="datos-legales" className="flex scroll-mt-6 flex-col gap-1 border-t border-line pt-4">
             <p className="text-[13.5px] font-semibold">Datos legales</p>
             <p className="text-[13px] text-muted">
               Con ellos se generan el aviso legal, la política de privacidad y la de cookies del portal, enlazados en el pie de cada página.

@@ -24,6 +24,6 @@ Créalas desde la ficha de un lead, desde un cliente o proyecto, o desde el cale
 ## Avisos
 
 - **Dentro de la app**: cuando vence una tarea aparece un aviso que se cierra solo a los 20 segundos.
-- **Notificaciones push**: actívalas en [Ajustes → Notificaciones push](/ajustes) o en Tareas, en cada dispositivo. El servidor revisa las tareas cada minuto y avisa aunque la app esté cerrada.
+- **Notificaciones push**: actívalas en [Ajustes → Notificaciones y app](/ajustes?seccion=notificaciones) o en Tareas, en cada dispositivo. El servidor revisa las tareas cada minuto y avisa aunque la app esté cerrada.
 
 > Las notificaciones push necesitan que la app esté encendida (`npm run dev`). En el móvil, además, la app tiene que estar publicada con HTTPS; en iPhone, instalada en la pantalla de inicio. En Brave hay que activar "Usar los servicios de Google para mensajería push".

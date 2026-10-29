@@ -35,4 +35,4 @@ La Ley General de Telecomunicaciones de 2022 reconoce el derecho a no recibir ll
 - [Agencia Española de Protección de Datos (AEPD)](https://www.aepd.es)
 - [Guía de INCIBE sobre el aviso legal de una web](https://www.incibe.es/empresas/blog/aviso-legal-parte-importante-tu-web)
 
-Las páginas legales de tu **portal del cliente** se generan con tus datos desde [Ajustes → Portal del cliente](/ajustes). Ver [Portal del cliente](/ayuda/portal).
+Las páginas legales de tu **portal del cliente** se generan con tus datos desde [Ajustes → Portal del cliente](/ajustes?seccion=portal#datos-legales). Ver [Portal del cliente](/ayuda/portal).

@@ -26,7 +26,7 @@ El portal es una app aparte que se publica gratis en Cloudflare (carpeta `portal
 1. `cd portal`, `npm install`, `npx wrangler login` y `npx wrangler d1 create leads-portal`. Pega el id que te da en `wrangler.jsonc`.
 2. `npm run db:migrate:remote`, `npx wrangler secret put PORTAL_SECRET` (invéntate un secreto de 16 caracteres o más) y `npm run deploy`.
 3. En el `.env.local` de la app añade `PORTAL_URL` (la dirección del despliegue) y `PORTAL_SECRET` (el mismo secreto). Reinicia la app.
-4. En [Ajustes → Portal del cliente](/ajustes) rellena los datos de tu negocio y los **datos legales**, y comprueba que pone "Conectado".
+4. En [Ajustes → Portal del cliente](/ajustes?seccion=portal) rellena los datos de tu negocio y los **datos legales**, y comprueba que pone "Conectado".
 
 ## Uso
 

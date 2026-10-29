@@ -1,22 +1,39 @@
 ---
-title: Ajustes, copias e instalación
-description: Base de datos, copias de seguridad, módulos e instalar la app.
+title: Menú, buscador y ajustes
+description: Menú, buscador, ajustes por categorías, copias de seguridad e instalar la app.
 order: 10
 ---
 
-# Ajustes, copias e instalación
+# Menú, buscador y ajustes
+
+## Menú y buscador
+
+El menú lateral agrupa las páginas por categorías: **Prospección** (Búsquedas, Resultados, Leads), **Clientes** (Clientes, Mensajes), **Gestión** (Documentos, Finanzas), **Agenda** (Tareas, Calendario) y **Sistema** (Ajustes, Papelera, Ayuda).
+
+Arriba del menú está el **buscador**: escribe una palabra y te lleva a la página, la pestaña o el ajuste que buscas. También encuentra los apartados de esta Ayuda. Algunos ejemplos:
+
+- *IBAN*, *IVA* o *IRPF* → Ajustes de documentos.
+- *etiquetas* o *etapas* → Ajustes → CRM.
+- *NIF* o *privacidad* → Datos legales del portal.
+- *gastos*, *roi* o *rentabilidad* → la pestaña correspondiente de Finanzas.
+- *facturas* o *plantillas* → la pestaña de Documentos.
+- *push* → Notificaciones.
+
+Ábrelo con **Ctrl + K** (⌘ + K en Mac), muévete con las flechas y pulsa **Enter**.
 
 ## Ajustes
 
-En [Ajustes](/ajustes) encontrarás:
+[Ajustes](/ajustes) está ordenado por categorías (índice a la izquierda; en el móvil, arriba):
 
-- **Base de datos**: cuál se usa y si está conectada.
-- **Copia de seguridad**: descargar y restaurar.
-- **Etapas y etiquetas**, y el umbral de "Valoración baja".
-- **Plantillas de mensaje**.
-- **Portal del cliente**: datos de tu negocio, datos legales y conexión.
-- **Claude (MCP)**, **Notificaciones push** e **Instalar la app**.
-- **Proveedores**, **Enriquecedores**, **Fuentes** y **Exportación**: los módulos conectados y su estado.
+- **General**: base de datos (cuál se usa y si está conectada) y copia de seguridad.
+- **CRM**: etapas, etiquetas, umbral de "Valoración baja" y plantillas de mensaje.
+- **Portal del cliente**: tu marca, la conexión con Cloudflare y los datos legales.
+- **Documentos y finanzas**: IVA, IRPF, vencimiento, IBAN y pie de factura; coste de tu hora y moneda.
+- **Notificaciones y app**: avisos push e instalar la app.
+- **Integraciones**: Claude (MCP).
+- **Módulos**: proveedores, enriquecedores, fuentes y formatos de exportación.
+
+Cada categoría tiene su propia dirección (por ejemplo `/ajustes?seccion=crm`), así que puedes guardarla en favoritos.
 
 ## Copias de seguridad
 
@@ -28,7 +45,7 @@ En [Ajustes](/ajustes) encontrarás:
 
 ## Instalar la app
 
-En Chrome o Edge, usa el icono de instalar de la barra de direcciones (o Ajustes → Instalar la app). Instalada, se abre en su propia ventana, los avisos salen como notificaciones del sistema y, si el servidor está apagado, muestra una pantalla de "sin conexión".
+En Chrome o Edge, usa el icono de instalar de la barra de direcciones (o [Ajustes → Notificaciones y app](/ajustes?seccion=notificaciones#instalar)). Instalada, se abre en su propia ventana, los avisos salen como notificaciones del sistema y, si el servidor está apagado, muestra una pantalla de "sin conexión".
 
 ## Tema
 
