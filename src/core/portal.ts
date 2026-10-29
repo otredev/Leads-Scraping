@@ -99,6 +99,8 @@ export interface PortalSnapshot {
   publishedAt: string;
   /** Clave pública VAPID para que el cliente active los avisos push (sin ella, el portal no los ofrece). */
   pushKey?: string;
+  /** Cuenta de la app que publica el portal (su marca y datos legales). */
+  owner?: string;
 }
 
 /** Datos legales del titular del portal (aviso legal, LSSI art. 10). */

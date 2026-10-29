@@ -3,10 +3,11 @@ import { hasDue } from "@/core/calendar";
 import { getStore } from "./registry";
 import { hasSubscribers, notifyAll } from "./notifications";
 import { listTasks } from "./tasks";
+import { runAsTenant, tenantKey } from "./tenant";
 
 /**
- * Recordatorios en segundo plano: cada minuto busca tareas que acaban de
- * vencer y las envía por los canales de notificación (push…). Funciona
+ * Recordatorios en segundo plano: cada minuto, para cada cuenta, busca tareas
+ * que acaban de vencer y las envía por los canales de notificación (push…). Funciona
  * mientras el servidor esté encendido, aunque no haya ninguna pestaña abierta.
  */
 
@@ -14,13 +15,15 @@ const INTERVAL_MS = 60_000;
 /** Solo avisa de tareas vencidas hace menos de una hora (no repasa el historial). */
 const WINDOW_MS = 60 * 60_000;
 
-const g = globalThis as unknown as { __reminders?: NodeJS.Timeout; __remindersRunning?: boolean };
+const g = globalThis as unknown as { __reminders?: NodeJS.Timeout; __remindersRunning?: Set<string> };
 
 const timeFmt = new Intl.DateTimeFormat("es", { hour: "2-digit", minute: "2-digit" });
 
 export async function checkDueTasks(now = new Date()) {
-  if (g.__remindersRunning) return 0;
-  g.__remindersRunning = true;
+  const busy = (g.__remindersRunning ??= new Set());
+  const key = tenantKey();
+  if (busy.has(key)) return 0;
+  busy.add(key);
   try {
     const store = getStore();
     const due = (await store.listTasks()).filter((t) => {
@@ -47,7 +50,7 @@ export async function checkDueTasks(now = new Date()) {
     console.error(`[recordatorios] ${(err as Error).message}`);
     return 0;
   } finally {
-    g.__remindersRunning = false;
+    busy.delete(key);
   }
 }
 
@@ -62,16 +65,27 @@ async function syncFromPortal() {
   await syncAcceptances({ force: true }).catch((err: Error) => console.error(`[portal] aceptaciones: ${err.message}`));
 }
 
+/** Ejecuta fn una vez por cada cuenta, con sus propios datos. */
+async function forEachAccount(fn: () => Promise<unknown>) {
+  const { readAccounts } = await import("./auth/accounts");
+  const { tenantOf } = await import("./auth/session");
+  const { users } = await readAccounts().catch(() => ({ users: [] }));
+  for (const u of users) await runAsTenant(tenantOf(u), fn).catch((err: Error) => console.error(`[segundo plano] ${u.email}: ${err.message}`));
+}
+
 export function startReminders() {
   if (g.__reminders) return;
   let ticks = 0;
   g.__reminders = setInterval(() => {
-    void checkDueTasks();
-    void syncMessages();
-    // Cada 5 minutos, recoge las propuestas y contratos aceptados en el portal.
-    if (++ticks % 5 === 0) void syncFromPortal();
+    const fifth = ++ticks % 5 === 0;
+    void forEachAccount(async () => {
+      await checkDueTasks();
+      await syncMessages();
+      // Cada 5 minutos, recoge las propuestas y contratos aceptados en el portal.
+      if (fifth) await syncFromPortal();
+    });
   }, INTERVAL_MS);
   // No impide que el proceso termine (p. ej. al parar el servidor).
   g.__reminders.unref?.();
-  void checkDueTasks();
+  void forEachAccount(() => checkDueTasks());
 }

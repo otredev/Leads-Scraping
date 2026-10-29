@@ -146,7 +146,10 @@ export interface LeadStore {
 export interface StorageModule {
   id: string;
   label: string;
-  create(): LeadStore;
+  /** Almacenamiento de una cuenta: "" es la primera (los datos de siempre), "u_…" las demás. */
+  create(tenant?: string): LeadStore;
+  /** Borra todos los datos de una cuenta (al eliminarla). */
+  destroy?(tenant: string): Promise<void>;
 }
 
 export function defineStorage(s: StorageModule): StorageModule {

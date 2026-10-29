@@ -80,8 +80,13 @@ app.get("/", (c) => c.html(<HomePage />));
 
 // ── Páginas legales (públicas) ──
 
-async function loadSite(db: D1Database) {
-  const row = await db.prepare("SELECT value FROM site WHERE key = 'site'").first<{ value: string }>();
+/**
+ * Marca y datos legales. Cada cuenta de la app publica los suyos (site:<cuenta>);
+ * "site" es el de la primera cuenta y el de los portales publicados antes de las cuentas.
+ */
+async function loadSite(db: D1Database, owner?: string) {
+  const key = owner && /^[A-Za-z0-9-]{8,64}$/.test(owner) ? `site:${owner}` : "site";
+  const row = await db.prepare("SELECT value FROM site WHERE key = ?").bind(key).first<{ value: string }>();
   return row ? (JSON.parse(row.value) as PortalSite) : undefined;
 }
 
@@ -144,8 +149,9 @@ const clientUa = (c: Ctx) => (c.req.header("user-agent") ?? "").slice(0, 300) ||
 const cleanName = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 120) : "");
 
 /** ¿Aceptó este cliente la versión actual de las políticas? */
-async function consentState(c: Ctx, clientId: string) {
-  const version = await policyVersion(await loadSite(c.env.DB));
+async function consentState(c: Ctx, snap: PortalSnapshot) {
+  const clientId = snap.client.id;
+  const version = await policyVersion(await loadSite(c.env.DB, snap.owner));
   const rows = await c.env.DB.prepare("SELECT version FROM consents WHERE client_id = ?").bind(clientId).all<{ version: string }>();
   return { version, ok: rows.results.some((r) => r.version === version), updated: rows.results.length > 0 };
 }
@@ -158,7 +164,7 @@ async function gate(c: Ctx, render: (snap: PortalSnapshot, token: string) => Res
   const token = c.req.param("token")!;
   const snap = await loadPortal(c, token);
   if (!snap) return c.html(<NotFoundPage />, 404);
-  const consent = await consentState(c, snap.client.id);
+  const consent = await consentState(c, snap);
   if (!consent.ok) return c.html(<ConsentPage snap={snap} token={token} next={new URL(c.req.url).pathname} updated={consent.updated} error={c.req.query("consent")} />);
   return render(snap, token);
 }
@@ -191,7 +197,7 @@ app.post("/p/:token/consent", bodyLimit({ maxSize: 8 * 1024 }), async (c) => {
   const name = cleanName(snap.client.contactName ?? snap.client.name) || snap.client.name;
   const back = (q: string) => c.redirect(`${next}?consent=${q}`, 303);
   if (form.agree !== "1") return back("casilla");
-  const { version } = await consentState(c, snap.client.id);
+  const { version } = await consentState(c, snap);
   await c.env.DB.prepare("INSERT OR IGNORE INTO consents (client_id, version, name, accepted_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)")
     .bind(snap.client.id, version, name, new Date().toISOString(), clientIp(c), clientUa(c))
     .run();
@@ -204,7 +210,7 @@ app.get("/p/:token/legal/:page", async (c) => {
   const page = c.req.param("page") as LegalSlug;
   const snap = await loadPortal(c, token, { countVisit: false });
   if (!snap || !Object.hasOwn(LEGAL_PAGES, page)) return c.html(<NotFoundPage />, 404);
-  return c.html(<LegalPage page={page} site={await loadSite(c.env.DB)} token={token} />);
+  return c.html(<LegalPage page={page} site={await loadSite(c.env.DB, snap.owner)} token={token} />);
 });
 
 app.get("/p/:token/mensajes", (c) =>
@@ -247,7 +253,7 @@ app.post("/p/:token/mensajes", bodyLimit({ maxSize: 16 * 1024 }), (c) => {
 async function gateJson(c: Ctx, run: (snap: PortalSnapshot) => Response | Promise<Response>) {
   const snap = await loadPortal(c, c.req.param("token")!, { countVisit: false });
   if (!snap) return c.json({ error: "No disponible" }, 404);
-  if (!(await consentState(c, snap.client.id)).ok) return c.json({ error: "Falta aceptar las condiciones" }, 403);
+  if (!(await consentState(c, snap)).ok) return c.json({ error: "Falta aceptar las condiciones" }, 403);
   return run(snap);
 }
 
@@ -391,7 +397,16 @@ api.use("*", async (c, next) => {
   await next();
 });
 
-api.get("/health", (c) => c.json({ ok: true, app: "leads-portal", version: 1 }));
+/** Tablas que crean las migraciones: si falta alguna, no se aplicaron (npm run db:migrate:remote). */
+const REQUIRED_TABLES = ["portals", "site", "acceptances", "consents", "messages", "message_seen", "push_subscriptions"];
+/** Versión del código del portal (tu app avisa si el publicado es más antiguo). */
+const PORTAL_BUILD = 4;
+
+api.get("/health", async (c) => {
+  const { results } = await c.env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all<{ name: string }>();
+  const have = new Set(results.map((r) => r.name));
+  return c.json({ ok: true, app: "leads-portal", version: 1, build: PORTAL_BUILD, missingTables: REQUIRED_TABLES.filter((t) => !have.has(t)) });
+});
 
 /** Publica (crea o reemplaza) el portal de un cliente: { tokenHash, snapshot } */
 api.put("/portals/:clientId", bodyLimit({ maxSize: 1024 * 1024 }), async (c) => {
@@ -413,16 +428,25 @@ api.put("/portals/:clientId", bodyLimit({ maxSize: 1024 * 1024 }), async (c) => 
 });
 
 /** Publica tu marca y tus datos legales (PortalSite). */
+/**
+ * ?owner=<cuenta>: la de esa cuenta de la app. ?default=1 (la primera cuenta)
+ * también la guarda como la general (páginas /legal/* sin enlace de cliente).
+ */
 api.put("/site", bodyLimit({ maxSize: 64 * 1024 }), async (c) => {
   const site = await c.req.json<PortalSite>().catch(() => undefined);
   if (!site || site.version !== 1 || typeof site.brand?.name !== "string" || typeof site.legal !== "object") return c.json({ error: "Datos no válidos" }, 400);
+  const owner = c.req.query("owner");
+  if (owner !== undefined && !/^[A-Za-z0-9-]{8,64}$/.test(owner)) return c.json({ error: "Cuenta no válida" }, 400);
+  const keys = owner ? [`site:${owner}`, ...(c.req.query("default") === "1" ? ["site"] : [])] : ["site"];
   const now = new Date().toISOString();
-  await c.env.DB.prepare(
-    `INSERT INTO site (key, value, updated_at) VALUES ('site', ?1, ?2)
-     ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = ?2`,
-  )
-    .bind(JSON.stringify(site), now)
-    .run();
+  await c.env.DB.batch(
+    keys.map((key) =>
+      c.env.DB.prepare(
+        `INSERT INTO site (key, value, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3`,
+      ).bind(key, JSON.stringify(site), now),
+    ),
+  );
   return c.json({ ok: true, updatedAt: now });
 });
 
@@ -541,7 +565,12 @@ app.route("/api", api);
 app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: "No encontrado" }, 404) : c.html(<NotFoundPage />, 404)));
 app.onError((err, c) => {
   console.error(err);
-  return c.req.path.startsWith("/api/") ? c.json({ error: "Error del portal" }, 500) : c.html(<NotFoundPage error />, 500);
+  // Tabla que falta: se actualizó el código sin aplicar las migraciones de la base de datos.
+  const missingTable = /no such table/i.test(String((err as Error)?.message ?? err));
+  const message = missingTable
+    ? "Faltan tablas en la base de datos del portal: en la carpeta portal ejecuta «npm run db:migrate:remote» y vuelve a publicar"
+    : "Error del portal";
+  return c.req.path.startsWith("/api/") ? c.json({ error: message }, 500) : c.html(<NotFoundPage error />, 500);
 });
 
 export default app;

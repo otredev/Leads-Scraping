@@ -11,6 +11,7 @@ import {
   Search,
   Settings,
   Trash2,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -70,6 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Sistema",
     items: [
       { href: "/ajustes", label: "Ajustes", Icon: Settings, keywords: "configuración preferencias" },
+      { href: "/perfil", label: "Perfil", Icon: UserRound, keywords: "cuenta usuario contraseña email sesiones dispositivos cerrar sesión recuperación eliminar cuenta token claude" },
       { href: "/papelera", label: "Papelera", Icon: Trash2, keywords: "borrados restaurar eliminar" },
       { href: "/ayuda", label: "Ayuda", Icon: BookOpen, keywords: "guías documentación manual cómo" },
     ],

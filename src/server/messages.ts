@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Client } from "@/core/clients";
 import type { Conversation, Message, PortalConsent } from "@/core/messages";
 import { getStore } from "./registry";
+import { tenantKey } from "./tenant";
 
 /**
  * Mensajes con los clientes.
@@ -23,23 +24,25 @@ interface Inbox {
   seen: Record<string, string>;
 }
 
-let lastSync = 0;
-let running: Promise<{ received: number }> | undefined;
+/** Por cuenta: cuándo se sincronizó por última vez y la sincronización en curso. */
+const lastSync = new Map<string, number>();
+const running = new Map<string, Promise<{ received: number }>>();
 
 /** Recoge del portal los mensajes nuevos, las aceptaciones de políticas y los "visto". */
 export function syncInbox({ force = false } = {}): Promise<{ received: number }> {
-  if (running) return running;
-  if (!force && Date.now() - lastSync < 15_000) return Promise.resolve({ received: 0 });
-  running = doSync().finally(() => {
-    running = undefined;
-  });
-  return running;
+  const key = tenantKey();
+  const current = running.get(key);
+  if (current) return current;
+  if (!force && Date.now() - (lastSync.get(key) ?? 0) < 15_000) return Promise.resolve({ received: 0 });
+  const p = doSync(key).finally(() => running.delete(key));
+  running.set(key, p);
+  return p;
 }
 
-async function doSync() {
+async function doSync(key: string) {
   const { portalConfig, portalFetch } = await import("./portal");
   if (!portalConfig().configured) return { received: 0 };
-  lastSync = Date.now();
+  lastSync.set(key, Date.now());
   const store = getStore();
   const cursor = (await store.getMeta<number>(META_CURSOR)) ?? 0;
   const res = await portalFetch(`/inbox?after=${cursor}`);

@@ -26,6 +26,7 @@ import {
 import type { Client } from "@/core/clients";
 import type { CrmSettings } from "@/core/crm";
 import { getStore } from "./registry";
+import { tenantKey } from "./tenant";
 import { defaultCurrency } from "./clients";
 import { financeSettings } from "./finance";
 
@@ -707,14 +708,16 @@ interface RemoteAcceptance {
   userAgent?: string;
 }
 
-let lastSync = 0;
+/** Última recogida de aceptaciones, por cuenta. */
+const lastSync = new Map<string, number>();
 
 /** Trae del portal las propuestas y contratos aceptados por los clientes. */
 export async function syncAcceptances({ force = false } = {}) {
   const { portalConfig, portalFetch } = await import("./portal");
   if (!portalConfig().configured) return { updated: 0 };
-  if (!force && Date.now() - lastSync < 30_000) return { updated: 0 };
-  lastSync = Date.now();
+  const key = tenantKey();
+  if (!force && Date.now() - (lastSync.get(key) ?? 0) < 30_000) return { updated: 0 };
+  lastSync.set(key, Date.now());
   const res = await portalFetch("/acceptances");
   if (!res.ok) throw Object.assign(new Error(`El portal respondió ${res.status} al pedir las aceptaciones`), { status: 502 });
   const list = (await res.json()) as RemoteAcceptance[];

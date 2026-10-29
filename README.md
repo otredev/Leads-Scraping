@@ -22,6 +22,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
    - [Conectar MongoDB Atlas](#conectar-mongodb-atlas)
    - [Variables de entorno](#variables-de-entorno)
 3. [Guía de uso](#3-guía-de-uso)
+   - [Cuentas e inicio de sesión](#cuentas-e-inicio-de-sesión)
    - [Búsquedas y resultados](#búsquedas-y-resultados)
    - [Leads (CRM)](#leads-crm)
    - [Contacto y plantillas](#contacto-y-plantillas)
@@ -121,13 +122,25 @@ Todas son opcionales. Van en `.env.local`.
 | `REMINDERS` | `off` desactiva los recordatorios en segundo plano | activados |
 | `ENRICH_ALLOW_LOCAL` | `1` deja al enriquecedor visitar direcciones locales (pruebas) | — |
 | `PORTAL_URL` / `PORTAL_SECRET` | Dirección y secreto del portal del cliente | — |
-| `MCP_TOKEN` | Token del servidor MCP (sin él, solo acepta este equipo) | — |
+| `MCP_TOKEN` | Token MCP de la primera cuenta (cada cuenta crea el suyo en Perfil) | — |
+| `REGISTRATION` | `closed` cierra el registro (solo se puede crear la primera cuenta) | abierto |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Envío de emails para recuperar la contraseña ([Resend](https://resend.com), gratis hasta 3.000/mes) | — (solo con código) |
+| `APP_URL` | Dirección pública de la app, para los enlaces de los emails | la de la petición |
 
 </details>
 
 ---
 
 ## 3. Guía de uso
+
+### Cuentas e inicio de sesión
+
+- **Registro abierto**: cada cuenta tiene su propio CRM (leads, clientes, documentos, finanzas, mensajes, ajustes y marca del portal), aislado del resto. Con `REGISTRATION=closed` solo se puede crear la primera.
+- **La primera cuenta se queda con los datos que ya había** antes del inicio de sesión: crea la tuya antes que nadie. Las demás empiezan vacías (en `json-file`, en `DATA_DIR/users/<cuenta>/`; en MongoDB, en la base `<MONGODB_DB>_<cuenta>`).
+- **Contraseñas** con scrypt; **sesión** en una cookie `httpOnly` de 30 días (solo se guarda su hash); límite de intentos; protección CSRF.
+- **Recuperar la contraseña** con el código de recuperación que se muestra al registrarse, o por email si configuras `RESEND_API_KEY` y `EMAIL_FROM`.
+- **Perfil** (`/perfil`): nombre, email, contraseña, código de recuperación, **sesiones abiertas** (cerrar una o todas las demás), token de Claude y eliminar la cuenta.
+- Las cuentas y sesiones se guardan aparte de los datos: `DATA_DIR/_accounts/accounts.json` o la base `<MONGODB_DB>_accounts`.
 
 ### Búsquedas y resultados
 
@@ -280,7 +293,7 @@ En **Ajustes → Claude (MCP)** tienes los comandos listos para copiar.
 |---|---|
 | **Claude Code** | Abre la carpeta del proyecto (trae `.mcp.json`) o: `claude mcp add --transport http leads-scraping http://localhost:3000/api/mcp` |
 | **Claude Desktop** | Ajustes → Desarrollador → Editar configuración (ver abajo) |
-| **claude.ai** | Necesita la app desplegada con HTTPS y `MCP_TOKEN`: conector con `https://tu-dominio/api/mcp?token=TU_TOKEN` |
+| **claude.ai** | Necesita la app desplegada con HTTPS: conector con `https://tu-dominio/api/mcp?token=TU_TOKEN` |
 
 ```json
 { "mcpServers": { "leads-scraping": { "command": "npx", "args": ["-y", "mcp-remote", "http://localhost:3000/api/mcp"] } } }
@@ -309,7 +322,7 @@ En **Ajustes → Claude (MCP)** tienes los comandos listos para copiar.
 </details>
 
 - Claude **no envía mensajes**: `draft_message` devuelve el texto y el enlace, y respeta "no contactar".
-- **Seguridad:** sin `MCP_TOKEN` solo responde a `localhost` (comprueba `Host` y `Origin`). Con él, exige `Authorization: Bearer <token>` o `?token=`.
+- **Cuentas y seguridad:** cada cuenta crea su token en **Perfil → Conectar Claude** (`Authorization: Bearer lsm_…` o `?token=`) y Claude trabaja solo con los datos de esa cuenta. Sin token, solo responde a `localhost` (comprueba `Host` y `Origin`) y con la primera cuenta; `MCP_TOKEN` también da acceso a la primera cuenta.
 - **Otrelink:** en la ficha, **Página web → Copiar para Claude** genera un encargo con los datos del negocio y una plantilla según su categoría. Claude crea la página en borrador y guarda el enlace en el lead.
 
 ---
@@ -324,7 +337,7 @@ src/
 │   ├── query.ts        Filtros y orden
 │   ├── provider.ts     Interfaces de fuentes y proveedores
 │   ├── exporter.ts     Interfaz de exportadores
-│   ├── storage.ts      Interfaz LeadStore
+│   ├── storage.ts      Interfaz LeadStore (una instancia por cuenta)
 │   ├── enricher.ts     Interfaz de enriquecedores
 │   ├── notifier.ts     Interfaz de canales de aviso
 │   ├── crm.ts          Etapas, etiquetas, ajustes
@@ -344,8 +357,12 @@ src/
 │   └── notifiers/      web-push
 ├── server/             Lógica de servidor: runner, crm, tasks, clients, finance, documents, messages,
 │   │                   portal, enrich, reminders, notifications, docs
+│   ├── tenant.ts       Cuenta de cada petición (AsyncLocalStorage): getStore() devuelve sus datos
+│   ├── http.ts         handle(): exige sesión y ejecuta con los datos de la cuenta
+│   ├── auth/           Cuentas, contraseñas (scrypt), sesiones, recuperación
 │   └── mcp/            Servidor MCP para Claude
-├── app/                Páginas y API REST (app/api/*)
+├── app/                (app)/ páginas con menú · (auth)/ login, registro y recuperar · api/ REST
+├── proxy.ts            Sin sesión, las páginas llevan a /login
 ├── components/         UI por sección: shell, pages, leads, clients, tasks,
 │                       finance, documents, calendar, settings, help, notifications, charts, ui
 ├── content/docs/       Guías de la página Ayuda (Markdown)

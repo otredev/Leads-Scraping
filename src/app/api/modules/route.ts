@@ -3,10 +3,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { enrichers, exporters, getStorageModule, getStore, providers, sources } from "@/server/registry";
 import { defaultCountry } from "@/server/config";
+import { handle } from "@/server/http";
 import { trashDays } from "@/server/crm";
 
 /** Describe los módulos registrados para que la UI se construya sola. */
-export async function GET() {
+export const GET = handle(async () => {
   await connection();
   const providerInfo = await Promise.all(
     providers.map(async (p) => ({
@@ -45,4 +46,4 @@ export async function GET() {
     defaults: { country: defaultCountry(), lang: "es", trashDays: trashDays() },
     mcp: { path: "/api/mcp", token: Boolean(process.env.MCP_TOKEN?.trim()) },
   });
-}
+});

@@ -27,6 +27,8 @@ docker compose up -d            # arranca gosom
 npm run dev                     # abre http://localhost:3000
 ```
 
+La app te pedirá **crear tu cuenta**: hazlo la primera vez, guarda el código de recuperación y ya estás dentro. Lo explica [Cuenta, inicio de sesión y perfil](/ayuda/cuenta).
+
 En la barra lateral, abajo, verás si **gosom** y la **base de datos** están conectados (punto verde).
 
 ## Conectar MongoDB Atlas

@@ -2,19 +2,7 @@ import type { Metadata, Viewport } from "next";
 // Fuente autoalojada (sin peticiones a Google Fonts, funciona sin conexión).
 import "@fontsource-variable/schibsted-grotesk";
 import "./globals.css";
-import { AppShell } from "@/components/shell/AppShell";
-import { DataProvider } from "@/components/data/DataProvider";
 import { themeInitScript } from "@/lib/theme";
-import { listDocs } from "@/server/docs";
-import type { SearchEntry } from "@/components/shell/nav";
-
-/** Guías y apartados de la Ayuda para el buscador del menú (se leen al compilar). */
-function helpEntries(): SearchEntry[] {
-  return listDocs().flatMap((d) => [
-    { title: d.title, context: "Ayuda", href: `/ayuda/${d.slug}`, keywords: d.description, kind: "help" as const },
-    ...d.headings.map((h) => ({ title: h.text, context: `Ayuda · ${d.title}`, href: `/ayuda/${d.slug}#${h.id}`, keywords: d.title, kind: "help" as const })),
-  ]);
-}
 
 export const metadata: Metadata = {
   title: "Leads Scraping",
@@ -41,11 +29,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Aplica el tema guardado antes de pintar (sin destello). */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body>
-        <DataProvider>
-          <AppShell help={helpEntries()}>{children}</AppShell>
-        </DataProvider>
-      </body>
+      {/* La app con su menú está en (app)/layout.tsx; inicio de sesión y registro, en (auth)/layout.tsx. */}
+      <body>{children}</body>
     </html>
   );
 }

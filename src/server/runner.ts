@@ -8,6 +8,7 @@ import { withNormalizedPhone } from "@/core/phone";
 import { describeQueries, parseMapsUrl } from "@/core/mapsUrl";
 import { defaultCountry } from "./config";
 import { getProvider, getStore } from "./registry";
+import { tenantKey } from "./tenant";
 import { applyRefresh } from "./refresh";
 
 export { defaultCountry };
@@ -20,7 +21,7 @@ export { defaultCountry };
 
 const g = globalThis as unknown as {
   __running?: Map<string, AbortController>;
-  __resumed?: boolean;
+  __resumed?: Set<string>;
 };
 const running = (g.__running ??= new Map());
 
@@ -195,13 +196,16 @@ export async function deleteSearch(id: string): Promise<void> {
  * el checkpoint guardado por el proveedor. Se ejecuta una vez por proceso.
  */
 export async function resumeInterrupted(): Promise<void> {
-  if (g.__resumed) return;
-  g.__resumed = true;
+  // Una vez por proceso y cuenta.
+  const resumed = (g.__resumed ??= new Set());
+  const key = tenantKey();
+  if (resumed.has(key)) return;
+  resumed.add(key);
   let searches: Search[];
   try {
     searches = await getStore().listSearches();
   } catch (err) {
-    g.__resumed = false; // reintentar en la próxima petición
+    resumed.delete(key); // reintentar en la próxima petición
     throw err;
   }
   for (const s of searches) {

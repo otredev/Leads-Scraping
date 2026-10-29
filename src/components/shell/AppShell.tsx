@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { NAV_GROUPS, type SearchEntry } from "./nav";
 import { GlobalSearch } from "./GlobalSearch";
+import { UserMenu } from "./UserMenu";
 import { taskBucket } from "@/core/calendar";
 import { TaskNotifier } from "../tasks/TaskNotifier";
 import { useData } from "../data/DataProvider";
@@ -190,6 +191,7 @@ export function AppShell({ children, help = [] }: { children: React.ReactNode; h
         <div className="flex flex-col gap-3 border-t border-line pt-3">
           <ConnectionStatus />
           <ThemeSwitch />
+          <UserMenu />
         </div>
       </aside>
 
@@ -224,6 +226,7 @@ export function AppShell({ children, help = [] }: { children: React.ReactNode; h
             <div className="flex flex-col gap-3">
               <ConnectionStatus />
               <ThemeSwitch />
+              <UserMenu onNavigate={() => setOpen(false)} />
             </div>
           </div>
         </div>

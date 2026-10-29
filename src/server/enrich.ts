@@ -6,6 +6,7 @@ import { withNormalizedPhone } from "@/core/phone";
 import type { SocialNetwork } from "@/core/socials";
 import { defaultCountry } from "./config";
 import { enrichers, getEnricher, getStore } from "./registry";
+import { tenantKey } from "./tenant";
 
 /**
  * Trabajos de enriquecimiento: completan datos de leads guardados con los
@@ -35,7 +36,7 @@ export interface EnrichJob {
   finishedAt?: string;
 }
 
-const g = globalThis as unknown as { __enrichJobs?: Map<string, { job: EnrichJob; abort: AbortController }> };
+const g = globalThis as unknown as { __enrichJobs?: Map<string, { job: EnrichJob; abort: AbortController; tenant: string }> };
 const jobs = (g.__enrichJobs ??= new Map());
 
 const badRequest = (m: string) => Object.assign(new Error(m), { status: 400 });
@@ -119,7 +120,7 @@ export async function startEnrichment(ids: string[], enricherIds?: string[]): Pr
     startedAt: new Date().toISOString(),
   };
   const abort = new AbortController();
-  jobs.set(job.id, { job, abort });
+  jobs.set(job.id, { job, abort, tenant: tenantKey() });
 
   // Cola con concurrencia limitada (la menor de los enriquecedores usados).
   const queue = [...leads];
@@ -143,12 +144,18 @@ export async function startEnrichment(ids: string[], enricherIds?: string[]): Pr
   return job;
 }
 
+/** Trabajo de la cuenta actual (los de otras cuentas no existen para ella). */
+function ownJob(id: string) {
+  const entry = jobs.get(id);
+  return entry && entry.tenant === tenantKey() ? entry : undefined;
+}
+
 export function getEnrichJob(id: string) {
-  return jobs.get(id)?.job;
+  return ownJob(id)?.job;
 }
 
 export function cancelEnrichJob(id: string) {
-  jobs.get(id)?.abort.abort();
+  ownJob(id)?.abort.abort();
 }
 
 /** Espera a que termine un trabajo (para enriquecer uno o pocos leads desde la ficha). */

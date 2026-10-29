@@ -7,6 +7,7 @@ import type { CrmSettings, Task } from "@/core/crm";
 /** Tarea tal como la devuelve /api/tasks (con el nombre y enlace de su lead o cliente). */
 export type TaskView = Task & { leadExists: boolean; subject: string; href: string; exists: boolean; projectName?: string };
 import type { ModulesInfo } from "../types";
+import { hardNavigate } from "../auth/safeNext";
 
 interface DataContextValue {
   modules?: ModulesInfo;
@@ -39,6 +40,11 @@ const DataContext = createContext<DataContextValue | null>(null);
 /** fetch + JSON que convierte las respuestas de error de la API en excepciones legibles. */
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init });
+  // Sesión caducada o cerrada desde otro dispositivo: a iniciar sesión (y volver aquí después).
+  if (res.status === 401 && typeof window !== "undefined" && !url.startsWith("/api/auth/")) {
+    hardNavigate(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    throw new Error("Inicia sesión para continuar");
+  }
   const text = await res.text();
   const body = text ? JSON.parse(text) : undefined;
   if (!res.ok) throw new Error(body?.error ?? `Error ${res.status}`);

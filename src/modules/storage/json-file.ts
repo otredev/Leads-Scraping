@@ -600,13 +600,24 @@ class JsonFileStore implements LeadStore {
   }
 }
 
+export const dataRoot = () =>
+  process.env.DATA_DIR ? path.resolve(/*turbopackIgnore: true*/ process.env.DATA_DIR) : path.join(/*turbopackIgnore: true*/ process.cwd(), "data");
+
+/** Carpetas de la raíz que no son datos de la primera cuenta. */
+export const RESERVED_DIRS = ["users", "_accounts"];
+
+/** "" → DATA_DIR (la primera cuenta, con los datos de siempre); "u_…" → DATA_DIR/users/u_…. */
+const dirFor = (tenant: string) => (tenant ? path.join(dataRoot(), "users", tenant) : dataRoot());
+
 export default defineStorage({
   id: "json-file",
   label: "Ficheros JSON locales",
-  create: () =>
-    new JsonFileStore(
-      process.env.DATA_DIR
-        ? path.resolve(/*turbopackIgnore: true*/ process.env.DATA_DIR)
-        : path.join(/*turbopackIgnore: true*/ process.cwd(), "data"),
-    ),
+  create: (tenant = "") => new JsonFileStore(dirFor(tenant)),
+  async destroy(tenant) {
+    if (!/^(u_[a-z0-9]+)?$/.test(tenant)) throw new Error("Cuenta no válida");
+    if (tenant) return fs.rm(dirFor(tenant), { recursive: true, force: true });
+    // Primera cuenta: sus ficheros están en la raíz, junto a las demás cuentas.
+    const entries = await fs.readdir(dataRoot()).catch(() => [] as string[]);
+    await Promise.all(entries.filter((e) => !RESERVED_DIRS.includes(e)).map((e) => fs.rm(path.join(dataRoot(), e), { recursive: true, force: true })));
+  },
 });

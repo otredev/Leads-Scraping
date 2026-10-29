@@ -1,5 +1,7 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
+import type { User } from "../auth/accounts";
+import { founderUser, userByMcpToken } from "../auth/service";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -19,26 +21,38 @@ function sameToken(a: string, b: string) {
 }
 
 /**
- * Acceso al MCP.
- * - Con MCP_TOKEN: exige "Authorization: Bearer <token>" (o ?token= para clientes que no envían cabeceras).
- * - Sin MCP_TOKEN: solo desde este equipo (localhost). Así, si despliegas la
- *   app sin configurar el token, el CRM no queda abierto a internet.
- * Devuelve la respuesta de error o undefined si se permite.
+ * Acceso al MCP. Cada cuenta conecta Claude con su propio token (Perfil →
+ * Conectar Claude): "Authorization: Bearer lsm_…" o ?token= para clientes que
+ * no envían cabeceras. Además, como antes, para la primera cuenta:
+ * - MCP_TOKEN (si está definido), o
+ * - sin token, solo desde este equipo (localhost). Así, si despliegas la app
+ *   sin token, el CRM no queda abierto a internet.
+ * Devuelve la cuenta con la que se ejecuta, o la respuesta de error.
  */
-export function mcpAuthError(request: Request): Response | undefined {
-  const token = process.env.MCP_TOKEN?.trim();
-  if (token) {
-    const auth = request.headers.get("authorization") ?? "";
-    const given = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : (new URL(request.url).searchParams.get("token") ?? "");
-    if (given && sameToken(given, token)) return undefined;
-    return Response.json({ error: "Token MCP no válido" }, { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
+export async function mcpAuth(request: Request): Promise<{ user: User } | { error: Response }> {
+  const auth = request.headers.get("authorization") ?? "";
+  const given = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : (new URL(request.url).searchParams.get("token") ?? "");
+  const denied = (message: string, status = 401) => ({
+    error: Response.json({ error: message }, { status, headers: status === 401 ? { "WWW-Authenticate": "Bearer" } : undefined }),
+  });
+
+  if (given) {
+    const user = await userByMcpToken(given);
+    if (user) return { user };
+    const envToken = process.env.MCP_TOKEN?.trim();
+    if (envToken && sameToken(given, envToken)) {
+      const founder = await founderUser();
+      return founder ? { user: founder } : denied("Crea primero tu cuenta en la app", 403);
+    }
+    return denied("Token MCP no válido");
   }
+  if (process.env.MCP_TOKEN?.trim()) return denied("Falta el token MCP");
   // Protección frente a DNS rebinding: el Host (y el Origin, si lo hay) deben ser locales.
   const host = hostname(request.headers.get("host"));
   const origin = request.headers.get("origin");
-  if (LOCAL_HOSTS.has(host) && (!origin || LOCAL_HOSTS.has(hostname(origin)))) return undefined;
-  return Response.json(
-    { error: "El MCP solo acepta conexiones locales. Define MCP_TOKEN para usarlo desde otra máquina." },
-    { status: 403 },
-  );
+  if (LOCAL_HOSTS.has(host) && (!origin || LOCAL_HOSTS.has(hostname(origin)))) {
+    const founder = await founderUser();
+    return founder ? { user: founder } : denied("Crea primero tu cuenta en la app", 403);
+  }
+  return denied("El MCP solo acepta conexiones locales sin token. Crea tu token en Perfil → Conectar Claude.", 403);
 }

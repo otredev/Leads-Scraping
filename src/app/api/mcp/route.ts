@@ -1,14 +1,21 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/server/mcp/server";
-import { mcpAuthError } from "@/server/mcp/auth";
+import { mcpAuth } from "@/server/mcp/auth";
+import { tenantOf } from "@/server/auth/session";
+import { runAsTenant } from "@/server/tenant";
 
 /**
  * Endpoint MCP (Streamable HTTP, sin sesiones): http://localhost:3000/api/mcp
- * Cada petición crea su propio servidor; el estado vive en el almacenamiento.
+ * Cada petición crea su propio servidor; el estado vive en el almacenamiento de la cuenta del token.
  */
 async function handler(request: Request) {
-  const denied = mcpAuthError(request);
-  if (denied) return denied;
+  const auth = await mcpAuth(request);
+  if ("error" in auth) return auth.error;
+  // Claude trabaja con los datos de la cuenta del token.
+  return runAsTenant(tenantOf(auth.user), () => serve(request));
+}
+
+async function serve(request: Request) {
   const server = createMcpServer();
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);

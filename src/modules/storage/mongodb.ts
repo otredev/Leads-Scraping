@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { MongoClient, type AnyBulkWriteOperation, type Db, type UpdateFilter } from "mongodb";
 import { applyLeadUpdate, mergeSettings, withDefaults, type CrmSettings, type LeadUpdate, type Task } from "@/core/crm";
 import { compareTasks } from "@/core/calendar";
@@ -23,6 +24,9 @@ import type { Message } from "@/core/messages";
  *   settings  etapas, etiquetas, plantillas y preferencias (documento "crm")
  *   tasks     tareas de seguimiento de los leads
  *
+ * Cada cuenta tiene su propia base de datos: la primera usa MONGODB_DB y las
+ * demás MONGODB_DB_<cuenta> (p. ej. leads_scraping_u_1a2b3c4d5e6f).
+ *
  * La papelera usa un índice TTL sobre `purgeAt`: MongoDB borra solo los
  * documentos caducados. Además se purgan desde la app por si el servidor no
  * admite TTL.
@@ -32,7 +36,18 @@ type Doc<T> = Omit<T, "id"> & { _id: string };
 type ResultDoc = Doc<Lead> & { key: string };
 type SavedDoc = Omit<Doc<SavedLead>, "deletedAt" | "purgeAt"> & { deletedAt?: Date; purgeAt?: Date };
 
-const g = globalThis as unknown as { __mongo?: { uri: string; client: Promise<MongoClient> }; __mongoIndexes?: Promise<void> };
+const g = globalThis as unknown as {
+  __mongo?: { uri: string; client: Promise<MongoClient> };
+  __mongoIndexes?: Map<string, Promise<void>>;
+  __mongoScope?: AsyncLocalStorage<string>;
+};
+/** Base de datos de la cuenta con la que se llamó al almacenamiento (ver scoped()). */
+const scope = (g.__mongoScope ??= new AsyncLocalStorage<string>());
+const indexes = (g.__mongoIndexes ??= new Map());
+
+const baseName = () => process.env.MONGODB_DB || "leads_scraping";
+/** "" → la base principal; "u_…" → la de esa cuenta. */
+export const dbNameFor = (tenant: string) => (tenant ? `${baseName()}_${tenant}` : baseName());
 
 function uri() {
   return process.env.MONGODB_URI ?? "";
@@ -71,12 +86,17 @@ function friendly(err: unknown): Error {
 async function db(): Promise<Db> {
   try {
     const c = await client();
-    const d = c.db(process.env.MONGODB_DB || "leads_scraping");
-    g.__mongoIndexes ??= ensureIndexes(d).catch((e) => {
-      g.__mongoIndexes = undefined;
-      throw e;
-    });
-    await g.__mongoIndexes;
+    const name = dbNameFor(scope.getStore() ?? "");
+    const d = c.db(name);
+    if (!indexes.has(name))
+      indexes.set(
+        name,
+        ensureIndexes(d).catch((e) => {
+          indexes.delete(name);
+          throw e;
+        }),
+      );
+    await indexes.get(name);
     return d;
   } catch (err) {
     throw friendly(err);
@@ -626,9 +646,24 @@ class MongoStore implements LeadStore {
   }
 }
 
+/** Cada llamada al almacenamiento se ejecuta con la base de datos de su cuenta. */
+function scoped(store: MongoStore, tenant: string): LeadStore {
+  return new Proxy(store, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? (...args: unknown[]) => scope.run(tenant, () => value.apply(target, args)) : value;
+    },
+  });
+}
+
 export default defineStorage({
   id: "mongodb",
   label: "MongoDB",
-  create: () => new MongoStore(),
+  create: (tenant = "") => scoped(new MongoStore(), tenant),
+  async destroy(tenant) {
+    const c = await client();
+    await c.db(dbNameFor(tenant)).dropDatabase();
+    indexes.delete(dbNameFor(tenant));
+  },
 });
 

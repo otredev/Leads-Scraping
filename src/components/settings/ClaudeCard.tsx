@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Check, Copy, Download, MonitorSmartphone } from "lucide-react";
 import type { ModulesInfo } from "../types";
@@ -51,18 +52,17 @@ export function ClaudeCard({ mcp }: { mcp: ModulesInfo["mcp"] }) {
   const origin = useOrigin();
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("code");
   const url = `${origin}${mcp.path}`;
-  const tokenNote = mcp.token ? " (sustituye TU_TOKEN por el valor de MCP_TOKEN)" : "";
+  // Cada cuenta conecta Claude con su propio token: así Claude solo ve los datos de esa cuenta.
+  const tokenNote = " (sustituye TU_TOKEN por tu token: Perfil → Conectar Claude)";
 
-  const code = mcp.token
-    ? `claude mcp add --transport http leads-scraping ${url} --header "Authorization: Bearer TU_TOKEN"`
-    : `claude mcp add --transport http leads-scraping ${url}`;
+  const code = `claude mcp add --transport http leads-scraping ${url} --header "Authorization: Bearer TU_TOKEN"`;
   const desktop = JSON.stringify(
     {
       mcpServers: {
         "leads-scraping": {
           command: "npx",
-          args: ["-y", "mcp-remote", url, ...(mcp.token ? ["--header", "Authorization:${AUTH_HEADER}"] : [])],
-          ...(mcp.token ? { env: { AUTH_HEADER: "Bearer TU_TOKEN" } } : {}),
+          args: ["-y", "mcp-remote", url, "--header", "Authorization:${AUTH_HEADER}"],
+          env: { AUTH_HEADER: "Bearer TU_TOKEN" },
         },
       },
     },
@@ -103,17 +103,20 @@ export function ClaudeCard({ mcp }: { mcp: ModulesInfo["mcp"] }) {
         {tab === "web" && (
           <div className="flex flex-col gap-2 text-[13.5px] text-fg-2">
             <p>
-              claude.ai (web y móvil) solo conecta con servidores públicos por HTTPS. Cuando despliegues la app, define{" "}
-              <code className="text-[12.5px]">MCP_TOKEN</code> y añade un conector personalizado con esta dirección:
+              claude.ai (web y móvil) solo conecta con servidores públicos por HTTPS. Cuando despliegues la app, añade un conector personalizado con
+              esta dirección y tu token:
             </p>
             <CopyBlock label="Conector personalizado" text={`https://TU-DOMINIO${mcp.path}?token=TU_TOKEN`} />
           </div>
         )}
 
         <p className="hint">
-          {mcp.token
-            ? "Protegido con MCP_TOKEN."
-            : "Sin MCP_TOKEN solo acepta conexiones desde este equipo. Defínelo en .env.local para usarlo desde otra máquina."}
+          Crea tu token en{" "}
+          <Link href="/perfil" className="underline underline-offset-2">
+            Perfil → Conectar Claude
+          </Link>
+          : Claude trabajará solo con los datos de tu cuenta. Sin token, solo acepta conexiones desde este equipo y con la primera cuenta
+          {mcp.token ? " (o con MCP_TOKEN)" : ""}.
         </p>
       </div>
     </Card>

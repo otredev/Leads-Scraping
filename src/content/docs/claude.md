@@ -20,7 +20,9 @@ La app incluye un servidor MCP en `http://localhost:3000/api/mcp`. Con él, Clau
 
 Los comandos para conectarlo (Claude Code y Claude Desktop) están en [Ajustes → Integraciones](/ajustes?seccion=integraciones). La app tiene que estar abierta.
 
-**Seguridad:** sin `MCP_TOKEN`, solo acepta conexiones desde tu ordenador. Claude nunca envía mensajes por su cuenta: los prepara y respeta la lista "no contactar".
+**Tu token:** créalo en [Perfil → Conectar Claude](/perfil) y ponlo en el comando (`Authorization: Bearer …`). Así Claude trabaja **solo con los datos de tu cuenta**. Sin token, solo acepta conexiones desde tu ordenador y con la primera cuenta.
+
+**Seguridad:** Claude nunca envía mensajes por su cuenta: los prepara y respeta la lista "no contactar".
 
 ## Página en Otrelink
 

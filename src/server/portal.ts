@@ -6,6 +6,7 @@ import { docTotals, docTypeLabel, statusLabel as docStatusLabel } from "@/core/d
 import { PORTAL_SITE_VERSION, PORTAL_SNAPSHOT_VERSION, type PortalBrand, type PortalDocument, type PortalSite, type PortalSnapshot, type PortalStatus } from "@/core/portal";
 import { getStore } from "./registry";
 import { clientPushKey } from "./client-push";
+import { currentTenant } from "./tenant";
 
 /**
  * Publicación del portal del cliente (Cloudflare Workers + D1, carpeta portal/).
@@ -39,9 +40,31 @@ export async function portalFetch(path: string, init: RequestInit = {}) {
   return res;
 }
 
+/** Versión del portal que espera esta app (la de portal/src/index.tsx). */
+const PORTAL_BUILD = 4;
+
+/** Qué le pasa al portal publicado: código antiguo o migraciones sin aplicar. */
+async function portalDiagnosis(): Promise<string | undefined> {
+  try {
+    const res = await portalFetch("/health");
+    if (!res.ok) return undefined;
+    const h = (await res.json()) as { build?: number; missingTables?: string[] };
+    if (h.missingTables?.length)
+      return `Faltan tablas en la base de datos del portal (${h.missingTables.join(", ")}): en la carpeta portal ejecuta «npm run db:migrate:remote» y vuelve a publicar.`;
+    if ((h.build ?? 0) < PORTAL_BUILD) return "El portal publicado es una versión anterior: en la carpeta portal ejecuta «npm run db:migrate:remote» y «npm run deploy».";
+  } catch {
+    /* sin conexión: ya lo dice el error original */
+  }
+  return undefined;
+}
+
 async function portalError(res: Response) {
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (res.status === 401) return bad("El portal rechazó el secreto: PORTAL_SECRET no coincide con el del portal.", 502);
+  if (res.status >= 500) {
+    const why = await portalDiagnosis();
+    if (why) return bad(why, 502);
+  }
   return bad(`El portal respondió ${res.status}${body.error ? `: ${body.error}` : ""}`, 502);
 }
 
@@ -56,6 +79,8 @@ export async function portalHealth(): Promise<{ ok: boolean; message: string }> 
   try {
     const res = await portalFetch("/health");
     if (!res.ok) throw await portalError(res);
+    const why = await portalDiagnosis();
+    if (why) return { ok: false, message: `Conectado con ${url}, pero: ${why}` };
     return { ok: true, message: `Conectado con ${url}` };
   } catch (err) {
     return { ok: false, message: (err as Error).message };
@@ -95,7 +120,9 @@ export async function buildSite(): Promise<PortalSite> {
 
 /** Publica la marca y los datos legales en el portal. */
 export async function publishSite() {
-  const res = await portalFetch("/site", { method: "PUT", body: JSON.stringify(await buildSite()) });
+  // Cada cuenta publica su marca y datos legales; la primera, también como los generales.
+  const { userId, dataKey } = currentTenant();
+  const res = await portalFetch(`/site?owner=${encodeURIComponent(userId)}${dataKey === "" ? "&default=1" : ""}`, { method: "PUT", body: JSON.stringify(await buildSite()) });
   if (!res.ok) throw await portalError(res);
 }
 
@@ -156,6 +183,7 @@ export async function buildSnapshot(client: Client): Promise<PortalSnapshot> {
     timeZone: timeZone(),
     publishedAt: new Date().toISOString(),
     ...(await clientPushKey().then((k) => (k ? { pushKey: k } : {}))),
+    owner: currentTenant().userId,
     projects: projects
       .filter((p) => p.status !== "cancelled")
       .map((p) => {

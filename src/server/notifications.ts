@@ -2,6 +2,7 @@ import "server-only";
 import { notifiers } from "@/modules";
 import type { Notifier, NotificationMessage, NotifierModule } from "@/core/notifier";
 import { getStore } from "./registry";
+import { tenantKey } from "./tenant";
 
 const g = globalThis as unknown as { __notifiers?: Map<string, Notifier> };
 
@@ -10,10 +11,11 @@ export function getNotifier(id: string): { module: NotifierModule; notifier: Not
   const mod = notifiers.find((n) => n.id === id);
   if (!mod) return undefined;
   const cache = (g.__notifiers ??= new Map());
-  if (!cache.has(id)) {
+  const key = `${tenantKey()}:${id}`;
+  if (!cache.has(key)) {
     const store = getStore();
     cache.set(
-      id,
+      key,
       mod.create({
         getMeta: (k) => store.getMeta(k),
         setMeta: (k, v) => store.setMeta(k, v),
@@ -21,7 +23,7 @@ export function getNotifier(id: string): { module: NotifierModule; notifier: Not
       }),
     );
   }
-  return { module: mod, notifier: cache.get(id)! };
+  return { module: mod, notifier: cache.get(key)! };
 }
 
 /** Envía un mensaje por todos los canales. Devuelve cuántos avisos salieron. */
