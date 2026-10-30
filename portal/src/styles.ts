@@ -211,11 +211,28 @@ summary:hover { color: var(--fg); }
 .msg-new { animation: msg-in .25s ease-out; }
 @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* ── Avisos push ── */
-.push-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.push-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.push-row .btn { flex-shrink: 0; }
+/* ── Notificaciones push ── */
+.push-row { display: flex; align-items: center; gap: 14px; }
+.push-icon { flex-shrink: 0; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); color: var(--fg); }
+.push-text { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.push-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .push-row .btn:disabled { opacity: .6; cursor: progress; }
+.push-prompt { border-color: var(--line-strong); }
+.push-prompt .push-icon { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--fg-2); }
+.btn.ghost:hover { background: var(--surface-2); color: var(--fg); }
+
+/* ── Botón flotante a Mensajes ── */
+.fab { position: fixed; z-index: 40; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px 0 18px; border-radius: 999px;
+  background: var(--primary); color: var(--primary-fg); font-size: 15px; font-weight: 600; text-decoration: none;
+  box-shadow: 0 10px 28px -8px rgb(0 0 0 / .35), 0 2px 6px rgb(0 0 0 / .12); transition: transform .15s, background .15s; }
+.fab:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.fab:active { transform: translateY(0); }
+.fab:focus-visible { outline: 3px solid var(--primary-soft); outline-offset: 3px; border-radius: 999px; }
+.fab-dot { position: absolute; top: 8px; right: 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--primary); }
+/* Hueco para que el botón no tape el final de la página. */
+body:has(.fab) .wrap { padding-bottom: 104px; }
 .thread.compact .msg-body { font-size: 13.5px; padding: 7px 11px; }
 
 /* ── Documentos ── */
@@ -279,7 +296,13 @@ summary:hover { color: var(--fg); }
   .card { padding: 16px; }
   .consent, .legal { padding: 20px; margin-top: 0; }
   .msg { max-width: 90%; }
-  .push-row { flex-direction: column; align-items: stretch; }
+  .push-row { flex-wrap: wrap; }
+  .push-text { flex-basis: calc(100% - 54px); }
+  .push-actions { flex-basis: 100%; }
+  .push-actions .btn { flex: 1; }
+  .fab { height: 56px; width: 56px; padding: 0; justify-content: center; }
+  .fab-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .fab-dot { top: 10px; right: 11px; }
   .card.chat { height: calc(100dvh - 92px); min-height: 360px; padding: 0; }
   .chat-head { padding: 10px 14px; gap: 8px 12px; flex-wrap: nowrap; }
   .chat-head .chat-title p { display: none; }
@@ -300,7 +323,7 @@ summary:hover { color: var(--fg); }
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 @media print {
-  .top, .foot, #aceptar, .center-text, .card:not(.paper), .callout.ok { display: none !important; }
+  .top, .foot, .fab, #aceptar, .center-text, .card:not(.paper), .callout.ok { display: none !important; }
   body { background: #fff; }
   .paper { border: 0; box-shadow: none; padding: 0; }
 }

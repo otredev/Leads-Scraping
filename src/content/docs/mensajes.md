@@ -14,21 +14,22 @@ Cada cliente con el [portal](/ayuda/portal) activo puede escribirte desde su enl
 - Escribe y, si quiere, elige **sobre qué proyecto** es. Tus respuestas le aparecen en la misma conversación.
 - No necesita registrarse: le basta su enlace privado.
 - La conversación **se actualiza sola**: si le respondes con su portal abierto, tu mensaje le aparece en unos segundos, sin recargar.
+- En todas las páginas del portal hay un botón flotante **Mensajes** abajo a la derecha, con un punto cuando le has respondido.
 - La conversación ocupa la pantalla y el cuadro para escribir queda siempre abajo. En el ordenador, **Enter** envía y **Mayús + Enter** hace un salto de línea.
 
-## Avisos para el cliente
+## Notificaciones para el cliente
 
-En su portal, el cliente puede pulsar **Activar avisos** (tarjeta *Avisos*) y le llegará una **notificación push** a ese dispositivo cuando:
+En la página principal de su portal, encima de Mensajes, el cliente ve la tarjeta **Notificaciones** con **Activar** y **Ahora no**. Desaparece en cuanto las activa, las bloquea en el navegador o pulsa *Ahora no*. Desde **Mensajes** (debajo de la conversación) puede activarlas o desactivarlas cuando quiera. Con ellas activadas le llega una **notificación push** a ese dispositivo cuando:
 
 - le **respondes** en Mensajes, o
-- le **envías** una propuesta o un contrato, o **emites** una factura visible en su portal. Al pulsar el aviso se abre directamente el documento.
+- le **envías** una propuesta o un contrato, o **emites** una factura visible en su portal. Al pulsar la notificación se abre directamente el documento.
 
 Los envía tu app con las mismas claves que tus propios avisos, así que **tiene que estar encendida** cuando respondes (lo estará, porque respondes desde ella). Es gratis y no hace falta ningún servicio más.
 
 - En la ficha del cliente, la tarjeta del portal muestra en cuántos **dispositivos** los tiene activados.
 - En **iPhone y iPad**, primero tiene que añadir el portal a la pantalla de inicio (Compartir → *Añadir a pantalla de inicio*) y abrirlo desde allí; el portal se lo explica.
-- Puede desactivarlos con el mismo botón. Si **renuevas su enlace**, los avisos se desactivan y tendrá que activarlos otra vez.
-- Si prefieres no ofrecerlos, desmarca **Ofrecer avisos push en el portal** en [Ajustes → Portal del cliente](/ajustes?seccion=portal#avisos-clientes).
+- Si **renuevas su enlace**, las notificaciones se desactivan y tendrá que activarlas otra vez.
+- Si prefieres no ofrecerlos, desmarca **Ofrecer notificaciones push en el portal** en [Ajustes → Portal del cliente](/ajustes?seccion=portal#avisos-clientes).
 
 ## En la app
 

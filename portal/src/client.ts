@@ -2,7 +2,7 @@
  * JavaScript del portal (opcional: sin él todo funciona con formularios normales).
  * - Mensajes en vivo: comprueba si hay mensajes nuevos cada pocos segundos mientras
  *   la página está visible, y al instante cuando llega un aviso push.
- * - Avisos push: botón para activarlos o desactivarlos en este dispositivo.
+ * - Notificaciones push: invitación en el inicio y botón para activarlas o desactivarlas en Mensajes.
  * Se sirve en /portal.js; el service worker, en /sw.js.
  */
 export const CLIENT_JS = `"use strict";
@@ -63,6 +63,8 @@ export const CLIENT_JS = `"use strict";
       const last = data.messages[data.messages.length - 1];
       const badge = document.querySelector("[data-new-reply]");
       if (badge) badge.hidden = last.author !== "admin";
+      const dot = document.querySelector("[data-fab-dot]");
+      if (dot) dot.hidden = last.author !== "admin";
       // Lo que escribe el propio cliente: bajar hasta el final de la conversación.
       if (scroller && last.author === "client") scroller.scrollTop = 0;
     } catch (e) {
@@ -175,27 +177,41 @@ export const CLIENT_JS = `"use strict";
     if (/[?&](ok|error)=/.test(location.search)) history.replaceState(null, "", location.pathname);
   }
 
-  // ── Avisos push ──
+  // ── Notificaciones push ──
+  // "prompt" (inicio): se ofrece hasta que el cliente las activa, las rechaza o pulsa "Ahora no".
+  // "manage" (Mensajes): siempre visible para activarlas o desactivarlas.
   const card = document.querySelector("[data-push]");
   const key = card && card.getAttribute("data-key");
   if (!card || !key) return;
+  const prompt = card.getAttribute("data-mode") === "prompt";
   const status = card.querySelector("[data-push-status]");
   const button = card.querySelector("[data-push-toggle]");
+  const dismiss = card.querySelector("[data-push-dismiss]");
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const DISMISSED = "portal-push-dismissed:" + match[1];
+  const dismissed = () => { try { return localStorage.getItem(DISMISSED) === "1"; } catch (e) { return false; } };
 
-  function show(text, label) {
+  function show(text, label, offerDismiss) {
     card.hidden = false;
     status.textContent = text;
-    if (label) {
-      button.hidden = false;
-      button.textContent = label;
-    } else button.hidden = true;
+    button.hidden = !label;
+    if (label) button.textContent = label;
+    if (dismiss) dismiss.hidden = !offerDismiss;
   }
+  const hide = () => { card.hidden = true; };
 
+  if (dismiss)
+    dismiss.addEventListener("click", () => {
+      try { localStorage.setItem(DISMISSED, "1"); } catch (e) { /* sin almacenamiento: solo se oculta ahora */ }
+      hide();
+    });
+
+  if (prompt && dismissed()) return;
   if (!supported) {
-    if (ios && !standalone) show("En iPhone y iPad, añade primero este portal a tu pantalla de inicio (botón Compartir → «Añadir a pantalla de inicio») y ábrelo desde allí para activar los avisos.");
+    if (ios && !standalone)
+      show("Para recibirlas en iPhone o iPad, añade este portal a tu pantalla de inicio (Compartir → «Añadir a pantalla de inicio») y ábrelo desde allí.", "", prompt);
     return;
   }
 
@@ -215,18 +231,22 @@ export const CLIENT_JS = `"use strict";
   let reg;
   async function refresh() {
     let sub = await reg.pushManager.getSubscription();
-    // Si cambió tu clave de avisos, se renueva la suscripción sin preguntar otra vez.
+    // Si cambió tu clave, se renueva la suscripción sin preguntar otra vez.
     if (sub && !sameKey(sub)) {
       await sub.unsubscribe();
       sub = Notification.permission === "granted" ? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes }) : null;
     }
-    if (sub) {
-      save(sub).catch(() => {});
-      show("Avisos activados en este dispositivo: te avisaremos cuando te respondamos o te enviemos un documento.", "Desactivar");
+    if (sub) save(sub).catch(() => {});
+    if (prompt) {
+      // Ya decidió (activadas o bloqueadas): no se vuelve a ofrecer.
+      if (sub || Notification.permission === "denied") hide();
+      else show("Actívalas y te avisaremos en este dispositivo cuando te respondamos o te enviemos un documento.", "Activar", true);
+    } else if (sub) {
+      show("Activadas en este dispositivo: te avisaremos cuando te respondamos o te enviemos un documento.", "Desactivar");
     } else if (Notification.permission === "denied") {
-      show("Has bloqueado los avisos de este portal. Para recibirlos, permítelos en los ajustes del sitio de tu navegador.");
+      show("Las has bloqueado en este navegador. Para recibirlas, permítelas en los ajustes del sitio.");
     } else {
-      show("Activa los avisos y te llegará una notificación a este dispositivo cuando te respondamos o te enviemos un documento.", "Activar avisos");
+      show("Actívalas y te avisaremos en este dispositivo cuando te respondamos o te enviemos un documento.", "Activar notificaciones");
     }
     return sub;
   }
@@ -238,16 +258,23 @@ export const CLIENT_JS = `"use strict";
       if (sub) {
         await forget(sub.endpoint).catch(() => {});
         await sub.unsubscribe();
-      } else {
-        if ((await Notification.requestPermission()) === "granted") {
-          const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
-          const res = await save(fresh);
-          if (!res.ok) throw new Error("save");
+        await refresh();
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+        const res = await save(fresh);
+        if (!res.ok) throw new Error("save");
+        if (prompt) {
+          show("¡Listo! Te avisaremos aquí cuando te respondamos o te enviemos un documento.", "", false);
+          setTimeout(hide, 4000);
+          return;
         }
       }
       await refresh();
     } catch (e) {
-      show("No se han podido activar los avisos en este navegador. Inténtalo de nuevo más tarde.", "Reintentar");
+      show("No se han podido activar en este navegador. Inténtalo de nuevo más tarde.", "Reintentar", prompt);
     } finally {
       button.disabled = false;
     }

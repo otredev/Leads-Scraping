@@ -172,7 +172,7 @@ export function PortalCard({ client }: { client: Client }) {
             </dd>
             {state.remote && (
               <>
-                <dt className="text-muted">Avisos</dt>
+                <dt className="text-muted">Notificaciones</dt>
                 <dd>
                   {state.remote.pushDevices
                     ? `Activados en ${state.remote.pushDevices} ${state.remote.pushDevices === 1 ? "dispositivo" : "dispositivos"}`

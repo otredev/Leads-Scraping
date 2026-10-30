@@ -163,19 +163,34 @@ export function MessagesPage({
 }
 
 /**
- * Avisos push: la tarjeta empieza oculta y la muestra portal.js si el navegador
- * los admite (sin JavaScript no se ve). Solo si tu app publicó su clave.
+ * Notificaciones push. La tarjeta empieza oculta y la muestra portal.js si el
+ * navegador las admite (sin JavaScript no se ve). Solo si tu app publicó su clave.
+ * - "prompt" (inicio): invita a activarlas hasta que el cliente las activa o las rechaza.
+ * - "manage" (Mensajes): estado y botón para activarlas o desactivarlas.
  */
-export function PushCard({ snap }: { snap: PortalSnapshot }) {
+export function PushCard({ snap, mode = "manage" }: { snap: PortalSnapshot; mode?: "prompt" | "manage" }) {
   if (!snap.pushKey) return null;
   return (
-    <section class="card push-card" data-push data-key={snap.pushKey} hidden>
+    <section class={`card push-card${mode === "prompt" ? " push-prompt" : ""}`} data-push data-key={snap.pushKey} data-mode={mode} hidden aria-live="polite">
       <div class="push-row">
+        <span class="push-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+        </span>
         <div class="push-text">
-          <h2>Avisos</h2>
+          <h2>Notificaciones</h2>
           <p class="muted small" data-push-status />
         </div>
-        <button class="btn" type="button" data-push-toggle hidden />
+        <div class="push-actions">
+          <button class={mode === "prompt" ? "btn primary" : "btn"} type="button" data-push-toggle hidden />
+          {mode === "prompt" && (
+            <button class="btn ghost" type="button" data-push-dismiss hidden>
+              Ahora no
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );

@@ -140,6 +140,19 @@ export function Contact({ snap }: { snap: PortalSnapshot }) {
   );
 }
 
+/** Botón flotante (abajo a la derecha) para ir a Mensajes desde cualquier página del portal. */
+export function MessagesFab({ token, alert = false }: { token: string; alert?: boolean }) {
+  return (
+    <a class="fab" href={`/p/${token}/mensajes`} aria-label={alert ? "Mensajes: tienes una respuesta nueva" : "Mensajes"}>
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+      </svg>
+      <span class="fab-label">Mensajes</span>
+      <span class="fab-dot" data-fab-dot hidden={!alert} />
+    </a>
+  );
+}
+
 /** Enlaces a las páginas legales (en el pie). Con token, se abren dentro del portal del cliente. */
 export function LegalLinks({ token, current }: { token?: string; current?: string }) {
   const base = token ? `/p/${token}/legal` : "/legal";
@@ -255,12 +268,13 @@ export function ProjectsPage({ snap, token, messages }: { snap: PortalSnapshot; 
             })}
           </ul>
         )}
+        <PushCard snap={snap} mode="prompt" />
         <MessagesCard snap={snap} token={token} messages={messages} />
-        <PushCard snap={snap} />
         <DocumentsList snap={snap} token={token} />
         <Contact snap={snap} />
       </main>
       <Footer snap={snap} token={token} />
+      <MessagesFab token={token} alert={messages.length > 0 && messages[messages.length - 1].author === "admin"} />
     </Layout>
   );
 }
@@ -400,6 +414,7 @@ export function ProjectPage({ snap, project: p, token }: { snap: PortalSnapshot;
         <Contact snap={snap} />
       </main>
       <Footer snap={snap} token={token} />
+      <MessagesFab token={token} />
     </Layout>
   );
 }

@@ -1,5 +1,5 @@
 import type { PortalDocument, PortalSnapshot } from "../../src/core/portal";
-import { Contact, Footer, Header, Layout, day, money } from "./pages";
+import { Contact, MessagesFab, Footer, Header, Layout, day, money } from "./pages";
 
 /* Propuestas, contratos y facturas en el portal del cliente. */
 
@@ -228,6 +228,7 @@ export function DocumentPage({
         <Contact snap={snap} />
       </main>
       <Footer snap={snap} token={token} />
+      <MessagesFab token={token} />
     </Layout>
   );
 }
