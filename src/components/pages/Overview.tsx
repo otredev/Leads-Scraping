@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { AtSign, Bookmark, Phone, Plus, Search as SearchIcon } from "lucide-react";
 import type { LeadStats } from "@/core/stats";
 import { useData } from "../data/DataProvider";
-import { taskBucket } from "@/core/calendar";
-import { TaskRow } from "../tasks/TaskParts";
+import { TodayInbox } from "../today/TodayInbox";
 import { ColorDot } from "../leads/parts";
 import { BarList, ColumnChart, MeterRow } from "../charts";
 import {
@@ -90,33 +89,6 @@ function FunnelCard({ funnel }: { funnel: Funnel }) {
   );
 }
 
-/** Tareas vencidas y de hoy. */
-function TodayTasks() {
-  const { tasks } = useData();
-  const list = tasks.filter((t) => ["overdue", "today"].includes(taskBucket(t)));
-  return (
-    <Card
-      title="Tareas para hoy"
-      description={list.length ? `${list.length} pendientes, incluidas las vencidas` : "Nada pendiente"}
-      actions={
-        <Link href="/tareas" className="btn btn-ghost btn-sm">
-          Ver agenda
-        </Link>
-      }
-    >
-      {list.length ? (
-        <ul className="-mx-1 divide-y divide-line">
-          {list.slice(0, 6).map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-        </ul>
-      ) : (
-        <p className="hint">Crea tareas desde la ficha de un lead: &ldquo;llamar mañana a las 10&rdquo;.</p>
-      )}
-    </Card>
-  );
-}
-
 export function Overview() {
   const { searches, loading } = useData();
   const [stats, setStats] = useState<Stats>();
@@ -146,6 +118,9 @@ export function Overview() {
     return (
       <>
         <PageHeader title="Panel" description="Resumen de tus leads y búsquedas." />
+        <div className="mb-5">
+          <TodayInbox />
+        </div>
         <EmptyState title="Aún no has buscado nada" action={newSearch}>
           Lanza tu primera búsqueda en Google Maps, por ejemplo &ldquo;clínicas dentales en Valencia&rdquo;. Los resultados
           aparecerán aquí con sus métricas.
@@ -158,6 +133,9 @@ export function Overview() {
     return (
       <>
         <PageHeader title="Panel" description="Resumen de tus leads y búsquedas." actions={newSearch} />
+        <div className="mb-5">
+          <TodayInbox />
+        </div>
         <OverviewSkeleton />
       </>
     );
@@ -167,6 +145,11 @@ export function Overview() {
   return (
     <>
       <PageHeader title="Panel" description="Resumen de tus leads y búsquedas." actions={newSearch} />
+
+      {/* Para empezar el día: tareas, mensajes, facturas y propuestas que piden atención. */}
+      <div className="mb-5">
+        <TodayInbox />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 lg:gap-5">
         <StatCard
@@ -201,7 +184,16 @@ export function Overview() {
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
         <FunnelCard funnel={s.funnel} />
-        <TodayTasks />
+        <Card title="Datos de contacto" description="Qué parte de lo encontrado puedes contactar">
+          {s && (
+            <div className="flex flex-col gap-5 pt-1">
+              <MeterRow label="Email" value={s.withEmail} total={s.total} />
+              <MeterRow label="Teléfono" value={s.withPhone} total={s.total} />
+              <MeterRow label="Web" value={s.withWebsite} total={s.total} />
+              <p className="hint">Los emails se obtienen visitando la web de cada negocio.</p>
+            </div>
+          )}
+        </Card>
       </div>
 
       {active.length > 0 && (
@@ -220,8 +212,8 @@ export function Overview() {
         </Card>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-4 lg:gap-5 xl:grid-cols-3">
-        <Card className="xl:col-span-2" title="Negocios extraídos" description="Últimos 14 días">
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:gap-5">
+        <Card title="Negocios extraídos" description="Últimos 14 días">
           {s ? (
             <ColumnChart
               caption="Negocios extraídos por día"
@@ -233,16 +225,6 @@ export function Overview() {
             />
           ) : (
             <div className="h-[220px]" />
-          )}
-        </Card>
-        <Card title="Datos de contacto" description="Qué parte de lo encontrado puedes contactar">
-          {s && (
-            <div className="flex flex-col gap-5 pt-1">
-              <MeterRow label="Email" value={s.withEmail} total={s.total} />
-              <MeterRow label="Teléfono" value={s.withPhone} total={s.total} />
-              <MeterRow label="Web" value={s.withWebsite} total={s.total} />
-              <p className="hint">Los emails se obtienen visitando la web de cada negocio.</p>
-            </div>
           )}
         </Card>
       </div>

@@ -51,6 +51,7 @@ Busca negocios, guárdalos como leads, contáctalos por WhatsApp o email, organi
 
 | Área | Qué puedes hacer |
 |---|---|
+| **Panel** | Bandeja **Hoy** para empezar el día (tareas vencidas y de hoy, mensajes sin responder, facturas vencidas y propuestas sin respuesta) y métricas de tus leads |
 | **Búsquedas** | Buscar negocios por texto o URL de Google Maps, con progreso en vivo, repetición y reanudación |
 | **Resultados** | Filtrar, ordenar, exportar (CSV/JSON) y guardar lo que interesa como lead |
 | **Leads** | CRM con tabla, lista, tablero tipo Trello y mapa; etapas, etiquetas, colores, notas y puntuación |

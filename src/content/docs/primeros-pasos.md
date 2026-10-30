@@ -47,6 +47,24 @@ Si antes usabas ficheros locales, en Ajustes tienes **Importar datos locales**.
 
 ¿Sin gosom a mano? Elige el proveedor **Demo**: genera datos ficticios para probar la app.
 
+## Empieza el día en el Panel
+
+Arriba del todo del [Panel](/) tienes la bandeja **Hoy**: en una sola lista, lo que pide tu atención.
+
+- **Vencido**: tareas que se pasaron de fecha y facturas emitidas sin cobrar cuyo vencimiento ya pasó.
+- **Para hoy**: tareas de hoy y facturas que vencen hoy.
+- **Esperando respuesta**: clientes que te escribieron y aún no has contestado, y propuestas o contratos enviados que el cliente todavía no ha aceptado ni firmado (marca *Validez vencida* si ya pasó su fecha).
+
+Filtra por tipo con los botones de arriba, marca las tareas como hechas ahí mismo y pulsa cualquier otra fila para ir al mensaje o al documento. Se actualiza sola cada minuto.
+
+**Quitar algo de la lista**: pulsa la **×** de la fila y elige:
+
+- **Ocultar hasta mañana**: vuelve a salir al día siguiente si sigue pendiente.
+- **Quitar de la lista**: se guarda en *ocultos* y no vuelve a salir mientras no cambie nada. Si el cliente te escribe otra vez, cambias la fecha de la tarea o el vencimiento de la factura, vuelve a aparecer.
+- **Eliminar de la lista**: desaparece del todo (no sale en *ocultos*), pero vuelve a aparecer si hay algo nuevo, como un mensaje del cliente.
+
+Justo después puedes pulsar **Deshacer**. Abajo de la bandeja verás cuántos tienes **ocultos** (los de *hasta mañana* y los *quitados*); ábrelos para **volver a mostrar** cualquiera. Se guarda en tu cuenta, así que vale en todos tus dispositivos.
+
 ## Siguientes pasos
 
 - [Búsquedas y resultados](/ayuda/busquedas): opciones, URLs de Google Maps y exportar.
